@@ -144,12 +144,92 @@ class MainWindow(QMainWindow):
         return splitter
     
     def create_processing_options_panel(self):
+        from PyQt5.QtWidgets import QComboBox, QRadioButton, QButtonGroup, QHBoxLayout
+        from PyQt5.QtCore import pyqtSignal
+        
         group_box = QGroupBox("处理选项")
         layout = QVBoxLayout(group_box)
         
         # 添加处理选项
         layout.addWidget(QLabel("选择处理类型:"))
-        # 这里将在后续添加实际的处理选项
+        
+        # 创建处理类型单选按钮
+        process_type_layout = QHBoxLayout()
+        self.image_radio = QRadioButton("图像")
+        self.video_radio = QRadioButton("视频")
+        self.mixed_radio = QRadioButton("混合")
+        
+        # 处理类型单选按钮组
+        self.process_type_group = QButtonGroup()
+        self.process_type_group.addButton(self.image_radio, 1)
+        self.process_type_group.addButton(self.video_radio, 2)
+        self.process_type_group.addButton(self.mixed_radio, 3)
+        
+        process_type_layout.addWidget(self.image_radio)
+        process_type_layout.addWidget(self.video_radio)
+        process_type_layout.addWidget(self.mixed_radio)
+        layout.addLayout(process_type_layout)
+        
+        # 图像选项组
+        self.image_group = QGroupBox("图像选项")
+        image_layout = QVBoxLayout(self.image_group)
+        
+        # 图像选项单选按钮
+        self.photo_suffix_cut = QRadioButton("照片后缀剪切")
+        self.photo_reorder = QRadioButton("照片重排序")
+        
+        # 图像选项单选按钮组
+        self.image_options_group = QButtonGroup()
+        self.image_options_group.addButton(self.photo_suffix_cut)
+        self.image_options_group.addButton(self.photo_reorder)
+        
+        image_layout.addWidget(self.photo_suffix_cut)
+        image_layout.addWidget(self.photo_reorder)
+        layout.addWidget(self.image_group)
+        
+        # 视频选项组
+        self.video_group = QGroupBox("视频选项")
+        video_layout = QVBoxLayout(self.video_group)
+        
+        # 视频选项单选按钮
+        self.framerate_integer = QRadioButton("帧率整数化")
+        self.compress_video = QRadioButton("压缩视频")
+        
+        # 视频选项单选按钮组
+        self.video_options_group = QButtonGroup()
+        self.video_options_group.addButton(self.framerate_integer)
+        self.video_options_group.addButton(self.compress_video)
+        
+        video_layout.addWidget(self.framerate_integer)
+        video_layout.addWidget(self.compress_video)
+        layout.addWidget(self.video_group)
+        
+        # 混合选项组
+        self.mixed_group = QGroupBox("混合选项")
+        mixed_layout = QVBoxLayout(self.mixed_group)
+        
+        # 混合选项单选按钮
+        self.file_compact = QRadioButton("文件缩小化")
+        self.file_extension_upper = QRadioButton("文件后缀大写化")
+        
+        # 混合选项单选按钮组
+        self.mixed_options_group = QButtonGroup()
+        self.mixed_options_group.addButton(self.file_compact)
+        self.mixed_options_group.addButton(self.file_extension_upper)
+        
+        mixed_layout.addWidget(self.file_compact)
+        mixed_layout.addWidget(self.file_extension_upper)
+        layout.addWidget(self.mixed_group)
+        
+        # 初始状态下隐藏所有选项组
+        self.image_group.setVisible(False)
+        self.video_group.setVisible(False)
+        self.mixed_group.setVisible(False)
+        
+        # 连接信号槽以切换选项组显示
+        self.image_radio.toggled.connect(lambda checked: self.toggle_option_group(checked, self.image_group))
+        self.video_radio.toggled.connect(lambda checked: self.toggle_option_group(checked, self.video_group))
+        self.mixed_radio.toggled.connect(lambda checked: self.toggle_option_group(checked, self.mixed_group))
         
         layout.addStretch()
         return group_box
@@ -271,3 +351,14 @@ class MainWindow(QMainWindow):
                 self.statusBar.showMessage(f'已加载 {len(self.root_paths)} 个文件夹')
             except Exception as e:
                 print(f"加载配置失败: {e}")
+    
+    def toggle_option_group(self, checked, group):
+        """切换选项组的可见性"""
+        if checked:
+            # 隐藏所有选项组
+            self.image_group.setVisible(False)
+            self.video_group.setVisible(False)
+            self.mixed_group.setVisible(False)
+            
+            # 显示选中的选项组
+            group.setVisible(True)
