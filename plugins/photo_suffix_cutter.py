@@ -17,8 +17,9 @@ class PhotoSuffixCutterProcessor(BaseProcessor):
         super().__init__()
         # 默认配置选项
         self.options = {
-            'rename_dsc_files': True,          # 是否重命名DSC文件
-            'dsc_suffix_number': 1,            # DSC文件后缀编号（如-1、-2等）
+            'rename_jpg_files': True,          # 是否重命名JPG文件
+            'file_prefix': '_DSC',             # 文件名前缀（如_DSC、_Z8等）
+            'dsc_suffix_number': 1,            # 文件后缀编号（如-1、-2等）
             'process_denoised_jpg': True,      # 是否处理降噪JPG文件
             'delete_denoised_dng': True,       # 是否删除降噪DNG文件
             'remove_date_prefix': True,        # 是否移除日期前缀
@@ -99,8 +100,8 @@ class PhotoSuffixCutterProcessor(BaseProcessor):
         Args:
             folder_path: 文件夹路径
         """
-        if self.options['rename_dsc_files']:
-            self._rename_dsc_files(folder_path)
+        if self.options['rename_jpg_files']:
+            self._rename_jpg_files(folder_path)
             
         if self.options['process_denoised_jpg']:
             self._process_denoised_jpg(folder_path)
@@ -111,9 +112,10 @@ class PhotoSuffixCutterProcessor(BaseProcessor):
         if self.options['remove_date_prefix']:
             self._remove_date_prefix(folder_path)
 
-    def _rename_dsc_files(self, folder_path: str):
-        """重命名DSC文件"""
+    def _rename_jpg_files(self, folder_path: str):
+        """重命名JPG文件（支持多种前缀）"""
         suffix_number = self.options['dsc_suffix_number']
+        file_prefix = self.options.get('file_prefix', '_DSC')
         # 获取配置的文件扩展名
         extensions = self.options.get('file_extensions', ['.jpg', '.JPG', '.dng', '.DNG'])
         
@@ -123,15 +125,17 @@ class PhotoSuffixCutterProcessor(BaseProcessor):
             if file_ext.lower() not in [ext.lower() for ext in extensions]:
                 continue
                 
-            # 匹配 _DSC0001-2.ext 或 _DSC0001-3.ext 等模式（扩展名已经验证过）
-            # 构建正则表达式，确保匹配完整的文件名（包括扩展名）
+            # 使用配置的前缀，匹配如 _DSC0001-2.ext 或 _Z80001-3.ext 等模式
+            # 注意：前缀可能包含特殊字符，需要转义
+            escaped_prefix = re.escape(file_prefix)
             escaped_ext = re.escape(file_ext)
-            pattern = r'(_DSC\d{4})-(\d+)' + escaped_ext + r'$'
+            # 匹配模式：前缀 + 4位数字 + '-' + 数字 + 扩展名
+            pattern = r'(' + escaped_prefix + r'\d{4})-(\d+)' + escaped_ext + r'$'
             match = re.match(pattern, filename, re.IGNORECASE)
             if match:
-                dsc_number = match.group(1)
+                prefix_number = match.group(1)  # 例如 _DSC0001
                 # 使用配置的后缀编号，保持原扩展名
-                new_base = f"{dsc_number}-{suffix_number}"
+                new_base = f"{prefix_number}-{suffix_number}"
                 new_filename = new_base + file_ext
                 old_file = os.path.join(folder_path, filename)
                 new_file = os.path.join(folder_path, new_filename)
@@ -139,9 +143,9 @@ class PhotoSuffixCutterProcessor(BaseProcessor):
                 # 检查目标文件是否已存在
                 if not os.path.exists(new_file):
                     os.rename(old_file, new_file)
-                    print(f'重命名DSC: {filename} -> {new_filename}')
+                    print(f'重命名文件: {filename} -> {new_filename}')
                 else:
-                    print(f'跳过DSC（目标文件已存在）: {filename}')
+                    print(f'跳过重命名（目标文件已存在）: {filename}')
 
     def _process_denoised_jpg(self, folder_path: str):
         """处理降噪JPG文件"""

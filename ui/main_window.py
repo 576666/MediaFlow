@@ -13,9 +13,131 @@ from PyQt5.QtWidgets import (QMainWindow, QTreeView, QFileSystemModel,
                              QVBoxLayout, QWidget, QMenuBar, QToolBar, 
                              QAction, QStatusBar, QListView, QAbstractItemView,
                              QGroupBox, QPushButton, QHBoxLayout, QLabel, QFileDialog,
-                             QHeaderView, QTextEdit, QSplitter)
-from PyQt5.QtCore import QDir, Qt, QFileInfo
-from PyQt5.QtGui import QKeySequence
+                             QHeaderView, QTextEdit, QSplitter, QDialog, 
+                             QTableWidget, QTableWidgetItem, QDialogButtonBox,
+                             QMessageBox, QLineEdit, QComboBox, QRadioButton, 
+                             QButtonGroup, QCheckBox, QSpinBox, QScrollArea, QFormLayout)
+from PyQt5.QtCore import QDir, Qt, QFileInfo, pyqtSignal
+from PyQt5.QtGui import QKeySequence, QStandardItemModel, QStandardItem
+
+
+class CustomSuffixDialog(QDialog):
+    """自定义后缀对话框"""
+    
+    def __init__(self, parent=None, saved_suffixes=None):
+        super().__init__(parent)
+        self.setWindowTitle("添加自定义后缀")
+        self.setModal(True)
+        
+        self.saved_suffixes = saved_suffixes or []
+        
+        self.init_ui()
+        # 调整窗口大小以适应内容，确保所有行都可见
+        self.adjustSizeToFitContent()
+    
+    def init_ui(self):
+        layout = QVBoxLayout(self)
+        
+        # 标题和说明
+        title_label = QLabel("<h3>添加自定义文件后缀</h3>")
+        title_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title_label)
+        
+        info_label = QLabel("在下方表格中填写你想要添加的自定义后缀。\n小写后缀会自动包含大写版本（例如.jpg也会处理.JPG）")
+        info_label.setWordWrap(True)
+        layout.addWidget(info_label)
+        
+        # 创建表格（10行：1行标题 + 9行数据），单列
+        self.table = QTableWidget(10, 1)
+        self.table.setHorizontalHeaderLabels(["想要消除的后缀"])
+        self.table.horizontalHeader().setStretchLastSection(True)
+        # 设置行高，确保所有行都能清晰显示
+        self.table.verticalHeader().setDefaultSectionSize(30)
+        # 设置最小宽度
+        self.table.setMinimumWidth(300)
+        
+        # 加载已保存的自定义后缀
+        self.load_saved_suffixes()
+        
+        layout.addWidget(self.table)
+        
+        # 按钮布局
+        button_layout = QHBoxLayout()
+        
+        save_btn = QPushButton("保存")
+        save_btn.clicked.connect(self.accept)
+        
+        cancel_btn = QPushButton("取消")
+        cancel_btn.clicked.connect(self.reject)
+        
+        button_layout.addStretch()
+        button_layout.addWidget(save_btn)
+        button_layout.addWidget(cancel_btn)
+        
+        layout.addLayout(button_layout)
+    
+    def adjustSizeToFitContent(self):
+        """调整窗口大小以确保表格内容完全可见"""
+        # 确保表格已经布局完成
+        self.table.updateGeometry()
+        self.table.viewport().update()
+        
+        # 精确计算表格所需高度（10行 * 行高30像素 + 表头高度 + 表格边框）
+        row_height = 30  # 每行高度
+        header_height = self.table.horizontalHeader().height()
+        vertical_spacing = 5  # 垂直间距
+        
+        # 计算表格总高度
+        table_height = 10 * row_height + header_height + vertical_spacing
+        
+        # 计算其他部件的高度
+        # 标题标签高度约50px，说明标签高度约50px，按钮区域高度约50px，边距约50px
+        extra_height = 200  # 增加额外高度确保所有内容可见
+        
+        # 计算宽度：确保列标题完全可见，加上一些边距
+        min_width = 400  # 增加宽度确保列标题和内容可见
+        
+        # 设置窗口大小，确保所有行都可见
+        total_height = table_height + extra_height
+        
+        # 确保窗口不会超过屏幕高度（留出100像素边距）
+        screen_geometry = self.screen().availableGeometry()
+        max_height = screen_geometry.height() - 100
+        if total_height > max_height:
+            total_height = max_height
+        
+        # 设置窗口大小
+        self.resize(min_width, total_height)
+        # 居中显示
+        self.moveToCenter()
+    
+    def moveToCenter(self):
+        """将窗口移动到屏幕中央"""
+        screen_geometry = self.screen().availableGeometry()
+        window_geometry = self.frameGeometry()
+        center_point = screen_geometry.center()
+        window_geometry.moveCenter(center_point)
+        self.move(window_geometry.topLeft())
+    
+    def load_saved_suffixes(self):
+        """加载已保存的自定义后缀到表格中"""
+        for i, suffix in enumerate(self.saved_suffixes[:9], 1):
+            if i < 10:
+                item = QTableWidgetItem(suffix)
+                self.table.setItem(i, 0, item)  # 单列，所以列索引为0
+    
+    def get_suffixes(self):
+        """获取表格中填写的后缀列表"""
+        suffixes = []
+        for i in range(1, 10):
+            item = self.table.item(i, 0)  # 单列，所以列索引为0
+            if item and item.text().strip():
+                suffix = item.text().strip()
+                # 确保后缀以点开头
+                if not suffix.startswith('.'):
+                    suffix = '.' + suffix
+                suffixes.append(suffix)
+        return suffixes
 
 
 class MainWindow(QMainWindow):
@@ -144,11 +266,6 @@ class MainWindow(QMainWindow):
         return splitter
     
     def create_processing_options_panel(self):
-        from PyQt5.QtWidgets import (QComboBox, QRadioButton, QButtonGroup, 
-                                     QHBoxLayout, QCheckBox, QSpinBox, 
-                                     QLineEdit, QFormLayout, QScrollArea, QWidget)
-        from PyQt5.QtCore import pyqtSignal
-        
         group_box = QGroupBox("处理选项")
         layout = QVBoxLayout(group_box)
         
@@ -265,15 +382,42 @@ class MainWindow(QMainWindow):
         self.date_prefix_edit.setToolTip("日期前缀模式，用逗号分隔多个模式")
         config_layout.addRow("日期前缀模式:", self.date_prefix_edit)
         
-        # 文件扩展名
-        self.file_extensions_edit = QLineEdit()
-        self.file_extensions_edit.setText(".jpg, .JPG, .dng, .DNG")
-        self.file_extensions_edit.setToolTip("处理的文件扩展名，用逗号分隔（输入小写会自动包含大写）")
-        config_layout.addRow("文件扩展名:", self.file_extensions_edit)
+        # 文件扩展名快速选择区域
+        extensions_layout = QHBoxLayout()
+        extensions_layout.addWidget(QLabel("文件扩展名:"))
         
-        # 常见扩展名快速选择
-        common_extensions_layout = QHBoxLayout()
-        common_extensions_layout.addWidget(QLabel("快速选择:"))
+        # 加号按钮用于添加自定义后缀
+        self.add_suffix_btn = QPushButton("+")
+        self.add_suffix_btn.setFixedSize(25, 25)
+        self.add_suffix_btn.setToolTip("添加自定义后缀")
+        self.add_suffix_btn.clicked.connect(self.show_custom_suffix_dialog)
+        extensions_layout.addWidget(self.add_suffix_btn)
+        
+        # 感叹号提示标签（带边框，悬停提示延迟短）
+        self.info_label = QLabel("!")
+        self.info_label.setToolTip("提示：小写后缀自动包含大写版本，例如.jpg也会处理.JPG")
+        self.info_label.setFixedSize(24, 24)  # 固定为正方形
+        self.info_label.setAlignment(Qt.AlignCenter)  # 内容居中
+        self.info_label.setStyleSheet("""
+            QLabel {
+                color: orange;
+                font-weight: bold;
+                font-size: 14px;
+                border: 2px solid orange;
+                border-radius: 0px;
+                background-color: #fff8e1;
+                text-align: center;
+            }
+            QLabel::hover {
+                background-color: #ffecb3;
+                border-color: #ff9800;
+            }
+        """)
+        # 设置tooltip显示延迟较短（毫秒）
+        self.info_label.setToolTipDuration(1000)  # 1秒后显示
+        extensions_layout.addWidget(self.info_label)
+        
+        extensions_layout.addWidget(QLabel("快速选择:"))
         
         # 常见照片扩展名
         self.common_ext_buttons = {}
@@ -283,12 +427,15 @@ class MainWindow(QMainWindow):
             btn.setCheckable(True)
             btn.setChecked(ext in ['.jpg', '.dng'])
             btn.setFixedSize(50, 25)
-            btn.clicked.connect(self.update_file_extensions_from_common)
-            common_extensions_layout.addWidget(btn)
+            btn.clicked.connect(self.update_selected_extensions)
+            extensions_layout.addWidget(btn)
             self.common_ext_buttons[ext] = btn
         
-        common_extensions_layout.addStretch()
-        config_layout.addRow("", common_extensions_layout)
+        # 自定义后缀按钮（动态加载）
+        self.custom_suffix_buttons = {}
+        
+        extensions_layout.addStretch()
+        config_layout.addRow("", extensions_layout)
         
         image_layout.addWidget(self.photo_suffix_config_group)
         
@@ -372,7 +519,6 @@ class MainWindow(QMainWindow):
     
     def update_root_list(self):
         # 创建一个模型来显示根目录列表
-        from PyQt5.QtGui import QStandardItemModel, QStandardItem
         model = QStandardItemModel()
         
         for path in self.root_paths:
@@ -435,7 +581,9 @@ class MainWindow(QMainWindow):
     
     def save_config(self):
         config = {
-            "root_paths": self.root_paths
+            "root_paths": self.root_paths,
+            "custom_prefixes": self.get_custom_prefixes(),
+            "custom_suffixes": self.get_custom_suffixes()
         }
         try:
             with open(self.config_file, 'w', encoding='utf-8') as f:
@@ -554,20 +702,147 @@ class MainWindow(QMainWindow):
         """显示/隐藏照片后缀剪切配置"""
         self.photo_suffix_config_group.setVisible(checked)
 
-    def update_file_extensions_from_common(self):
-        """从常见扩展名按钮更新文件扩展名输入框"""
+    def update_selected_extensions(self):
+        """更新选中的扩展名（包括常见和自定义后缀）"""
         selected_extensions = []
+        
+        # 收集常见后缀按钮的状态
         for ext, btn in self.common_ext_buttons.items():
             if btn.isChecked():
                 selected_extensions.append(ext)
         
-        # 更新输入框，用逗号分隔
-        self.file_extensions_edit.setText(', '.join(selected_extensions))
+        # 收集自定义后缀按钮的状态
+        for ext, btn in self.custom_suffix_buttons.items():
+            if btn.isChecked():
+                selected_extensions.append(ext)
+        
+        # 保存当前选择到配置
+        self.save_config()
+        
+        # 更新预览或状态信息
+        if selected_extensions:
+            self.statusBar.showMessage(f'已选择 {len(selected_extensions)} 个文件扩展名')
+        else:
+            self.statusBar.showMessage('未选择任何文件扩展名')
+
+    def show_custom_suffix_dialog(self):
+        """显示自定义后缀对话框"""
+        # 加载已保存的自定义后缀
+        saved_suffixes = self.get_custom_suffixes()
+        
+        dialog = CustomSuffixDialog(self, saved_suffixes)
+        if dialog.exec_() == QDialog.Accepted:
+            suffixes = dialog.get_suffixes()
+            if suffixes:
+                # 保存新的后缀
+                self.save_custom_suffixes(suffixes)
+                # 更新UI显示
+                self.load_custom_suffixes()
+                self.statusBar.showMessage(f'已添加 {len(suffixes)} 个自定义后缀')
+
+    def get_custom_suffixes(self):
+        """从配置文件获取自定义后缀列表"""
+        if os.path.exists(self.config_file):
+            try:
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                    return config.get("custom_suffixes", [])
+            except Exception as e:
+                print(f"获取自定义后缀失败: {e}")
+        return []
+
+    def save_custom_suffixes(self, suffixes):
+        """保存自定义后缀到配置文件"""
+        if os.path.exists(self.config_file):
+            try:
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            except Exception as e:
+                config = {}
+        else:
+            config = {}
+        
+        # 更新自定义后缀
+        config["custom_suffixes"] = suffixes
+        
+        # 保存配置
+        try:
+            with open(self.config_file, 'w', encoding='utf-8') as f:
+                json.dump(config, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"保存自定义后缀失败: {e}")
+
+    def load_custom_suffixes(self):
+        """加载自定义后缀并更新UI"""
+        suffixes = self.get_custom_suffixes()
+        
+        # 清除现有的自定义后缀按钮
+        for btn in self.custom_suffix_buttons.values():
+            btn.deleteLater()
+        self.custom_suffix_buttons.clear()
+        
+        # 获取扩展名区域的布局
+        config_layout = self.photo_suffix_config_group.layout()
+        if config_layout is None:
+            return
+            
+        # 找到扩展名布局的行
+        for i in range(config_layout.rowCount()):
+            item = config_layout.itemAt(i, QFormLayout.FieldRole)
+            if item and hasattr(item, 'layout'):
+                layout = item.layout()
+                if layout and layout.indexOf(self.add_suffix_btn) >= 0:
+                    # 这是扩展名布局
+                    extensions_layout = layout
+                    break
+        else:
+            extensions_layout = None
+            
+        if not extensions_layout:
+            return
+            
+        # 在加号按钮后添加自定义后缀按钮
+        add_btn_index = extensions_layout.indexOf(self.add_suffix_btn)
+        
+        # 添加自定义后缀按钮
+        for suffix in suffixes:
+            if suffix not in self.common_ext_buttons and suffix not in self.custom_suffix_buttons:
+                btn = QPushButton(suffix)
+                btn.setCheckable(True)
+                btn.setChecked(False)
+                btn.setFixedSize(50, 25)
+                btn.clicked.connect(self.update_selected_extensions)
+                extensions_layout.insertWidget(add_btn_index + 1, btn)
+                self.custom_suffix_buttons[suffix] = btn
+        
+        # 确保感叹号标签在最右侧
+        if hasattr(self, 'info_label'):
+            extensions_layout.removeWidget(self.info_label)
+            extensions_layout.addWidget(self.info_label)
+            
+        # 确保快速选择标签在正确位置
+        quick_select_labels = []
+        for i in range(extensions_layout.count()):
+            widget = extensions_layout.itemAt(i).widget()
+            if isinstance(widget, QLabel) and widget.text() == "快速选择:":
+                quick_select_labels.append(widget)
+        
+        # 如果有多个快速选择标签，移除多余的
+        for i, label in enumerate(quick_select_labels):
+            if i > 0:
+                extensions_layout.removeWidget(label)
+                label.deleteLater()
+
+    def get_custom_prefixes(self):
+        """获取自定义前缀列表"""
+        if hasattr(self, 'file_prefix_combo'):
+            all_items = [self.file_prefix_combo.itemText(i) for i in range(self.file_prefix_combo.count())]
+            default_prefixes = ["_DSC", "_Z8", "_Z72", "_A3R3", "_ILCE-7M4"]
+            return [prefix for prefix in all_items if prefix not in default_prefixes]
+        return []
 
     def show_option_help(self, option_type):
         """显示选项的帮助信息"""
-        from PyQt5.QtWidgets import QMessageBox
-        
         help_messages = {
             "rename_dsc": {
                 "title": "重命名DSC文件",
@@ -751,28 +1026,40 @@ class MainWindow(QMainWindow):
                 # 允许用户自定义正则表达式
                 date_patterns.append(pattern)
         
-        # 解析文件扩展名
-        extensions_text = self.file_extensions_edit.text().strip()
-        extensions = []
-        for ext in extensions_text.split(','):
-            ext = ext.strip()
-            if ext:
-                # 添加小写版本
-                extensions.append(ext.lower())
-                # 如果扩展名是小写，自动添加大写版本
-                if ext.islower():
-                    extensions.append(ext.upper())
+        # 收集选中的扩展名（包括常见和自定义后缀）
+        selected_extensions = []
         
-        # 去重并保持顺序
-        seen = set()
+        # 常见后缀按钮
+        for ext, btn in self.common_ext_buttons.items():
+            if btn.isChecked():
+                # 添加小写版本
+                selected_extensions.append(ext.lower())
+                # 自动添加大写版本
+                selected_extensions.append(ext.upper())
+        
+        # 自定义后缀按钮
+        for ext, btn in self.custom_suffix_buttons.items():
+            if btn.isChecked():
+                # 确保后缀以点开头
+                ext_with_dot = ext if ext.startswith('.') else '.' + ext
+                selected_extensions.append(ext_with_dot.lower())
+                # 自动添加大写版本
+                selected_extensions.append(ext_with_dot.upper())
+        
+        # 去重
         unique_extensions = []
-        for ext in extensions:
+        seen = set()
+        for ext in selected_extensions:
             if ext not in seen:
                 seen.add(ext)
                 unique_extensions.append(ext)
         
+        # 获取前缀
+        file_prefix = self.file_prefix_combo.currentText().strip()
+        
         return {
-            'rename_dsc_files': self.rename_dsc_check.isChecked(),
+            'rename_jpg_files': self.rename_jpg_check.isChecked(),
+            'file_prefix': file_prefix,
             'dsc_suffix_number': self.suffix_number_spin.value(),
             'process_denoised_jpg': self.process_denoised_jpg_check.isChecked(),
             'delete_denoised_dng': self.delete_denoised_dng_check.isChecked(),
