@@ -144,7 +144,9 @@ class MainWindow(QMainWindow):
         return splitter
     
     def create_processing_options_panel(self):
-        from PyQt5.QtWidgets import QComboBox, QRadioButton, QButtonGroup, QHBoxLayout
+        from PyQt5.QtWidgets import (QComboBox, QRadioButton, QButtonGroup, 
+                                     QHBoxLayout, QCheckBox, QSpinBox, 
+                                     QLineEdit, QFormLayout, QScrollArea, QWidget)
         from PyQt5.QtCore import pyqtSignal
         
         group_box = QGroupBox("处理选项")
@@ -185,6 +187,54 @@ class MainWindow(QMainWindow):
         
         image_layout.addWidget(self.photo_suffix_cut)
         image_layout.addWidget(self.photo_reorder)
+        
+        # 照片后缀剪切配置区域（初始隐藏）
+        self.photo_suffix_config_group = QGroupBox("照片后缀剪切配置")
+        self.photo_suffix_config_group.setVisible(False)
+        config_layout = QFormLayout(self.photo_suffix_config_group)
+        
+        # 后缀编号配置
+        self.suffix_number_spin = QSpinBox()
+        self.suffix_number_spin.setRange(1, 999)
+        self.suffix_number_spin.setValue(1)
+        self.suffix_number_spin.setToolTip("设置DSC文件的后缀编号（如-1、-2等）")
+        config_layout.addRow("后缀编号:", self.suffix_number_spin)
+        
+        # 功能复选框
+        self.rename_dsc_check = QCheckBox("重命名DSC文件")
+        self.rename_dsc_check.setChecked(True)
+        self.rename_dsc_check.setToolTip("将_DSC0001-2.jpg等文件重命名为统一后缀")
+        config_layout.addRow(self.rename_dsc_check)
+        
+        self.process_denoised_jpg_check = QCheckBox("处理降噪JPG文件")
+        self.process_denoised_jpg_check.setChecked(True)
+        self.process_denoised_jpg_check.setToolTip("处理_已增强-降噪.jpg文件")
+        config_layout.addRow(self.process_denoised_jpg_check)
+        
+        self.delete_denoised_dng_check = QCheckBox("删除降噪DNG文件")
+        self.delete_denoised_dng_check.setChecked(True)
+        self.delete_denoised_dng_check.setToolTip("删除_已增强-降噪.dng文件")
+        config_layout.addRow(self.delete_denoised_dng_check)
+        
+        self.remove_date_prefix_check = QCheckBox("移除日期前缀")
+        self.remove_date_prefix_check.setChecked(True)
+        self.remove_date_prefix_check.setToolTip("移除YYYY-MM-DD-或YYYYMMDD+等日期前缀")
+        config_layout.addRow(self.remove_date_prefix_check)
+        
+        # 日期前缀模式
+        self.date_prefix_edit = QLineEdit()
+        self.date_prefix_edit.setText("YYYY-MM-DD-, YYYYMMDD+")
+        self.date_prefix_edit.setToolTip("日期前缀模式，用逗号分隔多个模式")
+        config_layout.addRow("日期前缀模式:", self.date_prefix_edit)
+        
+        # 文件扩展名
+        self.file_extensions_edit = QLineEdit()
+        self.file_extensions_edit.setText(".jpg, .JPG, .dng, .DNG")
+        self.file_extensions_edit.setToolTip("处理的文件扩展名，用逗号分隔")
+        config_layout.addRow("文件扩展名:", self.file_extensions_edit)
+        
+        image_layout.addWidget(self.photo_suffix_config_group)
+        
         layout.addWidget(self.image_group)
         
         # 视频选项组
@@ -230,6 +280,9 @@ class MainWindow(QMainWindow):
         self.image_radio.toggled.connect(lambda checked: self.toggle_option_group(checked, self.image_group))
         self.video_radio.toggled.connect(lambda checked: self.toggle_option_group(checked, self.video_group))
         self.mixed_radio.toggled.connect(lambda checked: self.toggle_option_group(checked, self.mixed_group))
+        
+        # 连接照片后缀剪切单选按钮，显示/隐藏配置
+        self.photo_suffix_cut.toggled.connect(self.toggle_photo_suffix_config)
         
         layout.addStretch()
         return group_box
@@ -362,3 +415,36 @@ class MainWindow(QMainWindow):
             
             # 显示选中的选项组
             group.setVisible(True)
+
+    def toggle_photo_suffix_config(self, checked):
+        """显示/隐藏照片后缀剪切配置"""
+        self.photo_suffix_config_group.setVisible(checked)
+
+    def get_photo_suffix_options(self):
+        """获取照片后缀剪切配置选项"""
+        # 解析日期前缀模式
+        date_patterns_text = self.date_prefix_edit.text().strip()
+        date_patterns = []
+        for pattern in date_patterns_text.split(','):
+            pattern = pattern.strip()
+            if pattern == 'YYYY-MM-DD-':
+                date_patterns.append(r'^\d{4}-\d{2}-\d{2}-')
+            elif pattern == 'YYYYMMDD+':
+                date_patterns.append(r'^\d{8}\+')
+            elif pattern:
+                # 允许用户自定义正则表达式
+                date_patterns.append(pattern)
+        
+        # 解析文件扩展名
+        extensions_text = self.file_extensions_edit.text().strip()
+        extensions = [ext.strip() for ext in extensions_text.split(',') if ext.strip()]
+        
+        return {
+            'rename_dsc_files': self.rename_dsc_check.isChecked(),
+            'dsc_suffix_number': self.suffix_number_spin.value(),
+            'process_denoised_jpg': self.process_denoised_jpg_check.isChecked(),
+            'delete_denoised_dng': self.delete_denoised_dng_check.isChecked(),
+            'remove_date_prefix': self.remove_date_prefix_check.isChecked(),
+            'date_prefix_patterns': date_patterns,
+            'file_extensions': extensions
+        }
