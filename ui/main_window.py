@@ -200,26 +200,58 @@ class MainWindow(QMainWindow):
         self.suffix_number_spin.setToolTip("设置DSC文件的后缀编号（如-1、-2等）")
         config_layout.addRow("后缀编号:", self.suffix_number_spin)
         
-        # 功能复选框
+        # 功能复选框（带帮助按钮）
         self.rename_dsc_check = QCheckBox("重命名DSC文件")
         self.rename_dsc_check.setChecked(True)
         self.rename_dsc_check.setToolTip("将_DSC0001-2.jpg等文件重命名为统一后缀")
-        config_layout.addRow(self.rename_dsc_check)
+        rename_layout = QHBoxLayout()
+        rename_layout.addWidget(self.rename_dsc_check)
+        self.rename_help_btn = QPushButton("?")
+        self.rename_help_btn.setFixedSize(25, 25)
+        self.rename_help_btn.setToolTip("点击查看详细说明")
+        self.rename_help_btn.clicked.connect(lambda: self.show_option_help("rename_dsc"))
+        rename_layout.addWidget(self.rename_help_btn)
+        rename_layout.addStretch()
+        config_layout.addRow("", rename_layout)
         
         self.process_denoised_jpg_check = QCheckBox("处理降噪JPG文件")
         self.process_denoised_jpg_check.setChecked(True)
         self.process_denoised_jpg_check.setToolTip("处理_已增强-降噪.jpg文件")
-        config_layout.addRow(self.process_denoised_jpg_check)
+        denoise_jpg_layout = QHBoxLayout()
+        denoise_jpg_layout.addWidget(self.process_denoised_jpg_check)
+        self.denoise_jpg_help_btn = QPushButton("?")
+        self.denoise_jpg_help_btn.setFixedSize(25, 25)
+        self.denoise_jpg_help_btn.setToolTip("点击查看详细说明")
+        self.denoise_jpg_help_btn.clicked.connect(lambda: self.show_option_help("process_denoised_jpg"))
+        denoise_jpg_layout.addWidget(self.denoise_jpg_help_btn)
+        denoise_jpg_layout.addStretch()
+        config_layout.addRow("", denoise_jpg_layout)
         
         self.delete_denoised_dng_check = QCheckBox("删除降噪DNG文件")
         self.delete_denoised_dng_check.setChecked(True)
         self.delete_denoised_dng_check.setToolTip("删除_已增强-降噪.dng文件")
-        config_layout.addRow(self.delete_denoised_dng_check)
+        delete_dng_layout = QHBoxLayout()
+        delete_dng_layout.addWidget(self.delete_denoised_dng_check)
+        self.delete_dng_help_btn = QPushButton("?")
+        self.delete_dng_help_btn.setFixedSize(25, 25)
+        self.delete_dng_help_btn.setToolTip("点击查看详细说明")
+        self.delete_dng_help_btn.clicked.connect(lambda: self.show_option_help("delete_denoised_dng"))
+        delete_dng_layout.addWidget(self.delete_dng_help_btn)
+        delete_dng_layout.addStretch()
+        config_layout.addRow("", delete_dng_layout)
         
         self.remove_date_prefix_check = QCheckBox("移除日期前缀")
         self.remove_date_prefix_check.setChecked(True)
         self.remove_date_prefix_check.setToolTip("移除YYYY-MM-DD-或YYYYMMDD+等日期前缀")
-        config_layout.addRow(self.remove_date_prefix_check)
+        date_prefix_layout = QHBoxLayout()
+        date_prefix_layout.addWidget(self.remove_date_prefix_check)
+        self.date_prefix_help_btn = QPushButton("?")
+        self.date_prefix_help_btn.setFixedSize(25, 25)
+        self.date_prefix_help_btn.setToolTip("点击查看详细说明")
+        self.date_prefix_help_btn.clicked.connect(lambda: self.show_option_help("remove_date_prefix"))
+        date_prefix_layout.addWidget(self.date_prefix_help_btn)
+        date_prefix_layout.addStretch()
+        config_layout.addRow("", date_prefix_layout)
         
         # 日期前缀模式
         self.date_prefix_edit = QLineEdit()
@@ -230,8 +262,27 @@ class MainWindow(QMainWindow):
         # 文件扩展名
         self.file_extensions_edit = QLineEdit()
         self.file_extensions_edit.setText(".jpg, .JPG, .dng, .DNG")
-        self.file_extensions_edit.setToolTip("处理的文件扩展名，用逗号分隔")
+        self.file_extensions_edit.setToolTip("处理的文件扩展名，用逗号分隔（输入小写会自动包含大写）")
         config_layout.addRow("文件扩展名:", self.file_extensions_edit)
+        
+        # 常见扩展名快速选择
+        common_extensions_layout = QHBoxLayout()
+        common_extensions_layout.addWidget(QLabel("快速选择:"))
+        
+        # 常见照片扩展名
+        self.common_ext_buttons = {}
+        common_extensions = ['.jpg', '.dng', '.nef', '.arw', '.xef', '.cr2', '.tif', '.tiff']
+        for ext in common_extensions:
+            btn = QPushButton(ext)
+            btn.setCheckable(True)
+            btn.setChecked(ext in ['.jpg', '.dng'])
+            btn.setFixedSize(50, 25)
+            btn.clicked.connect(self.update_file_extensions_from_common)
+            common_extensions_layout.addWidget(btn)
+            self.common_ext_buttons[ext] = btn
+        
+        common_extensions_layout.addStretch()
+        config_layout.addRow("", common_extensions_layout)
         
         image_layout.addWidget(self.photo_suffix_config_group)
         
@@ -420,6 +471,188 @@ class MainWindow(QMainWindow):
         """显示/隐藏照片后缀剪切配置"""
         self.photo_suffix_config_group.setVisible(checked)
 
+    def update_file_extensions_from_common(self):
+        """从常见扩展名按钮更新文件扩展名输入框"""
+        selected_extensions = []
+        for ext, btn in self.common_ext_buttons.items():
+            if btn.isChecked():
+                selected_extensions.append(ext)
+        
+        # 更新输入框，用逗号分隔
+        self.file_extensions_edit.setText(', '.join(selected_extensions))
+
+    def show_option_help(self, option_type):
+        """显示选项的帮助信息"""
+        from PyQt5.QtWidgets import QMessageBox
+        
+        help_messages = {
+            "rename_dsc": {
+                "title": "重命名DSC文件",
+                "message": """
+                <html>
+                <head>
+                <style>
+                table { border-collapse: collapse; margin: 10px 0; }
+                th { background-color: #f2f2f2; padding: 8px; text-align: left; }
+                td { padding: 8px; border: 1px solid #ddd; }
+                .section { margin: 15px 0; }
+                .warning { color: #d9534f; font-weight: bold; }
+                </style>
+                </head>
+                <body>
+                <div class="section">
+                <h3>效果</h3>
+                <p>将Lightroom批量导出的DSC文件重命名为统一后缀编号。</p>
+                </div>
+                
+                <div class="section">
+                <h3>示例</h3>
+                <table>
+                <tr><th>原始文件名</th><th>→</th><th>新文件名</th></tr>
+                <tr><td>_DSC0001-2.jpg</td><td>→</td><td>_DSC0001-1.jpg</td></tr>
+                <tr><td>_DSC0002-3.JPG</td><td>→</td><td>_DSC0002-1.JPG</td></tr>
+                <tr><td>_DSC0003-4.dng</td><td>→</td><td>_DSC0003-1.dng</td></tr>
+                </table>
+                </div>
+                
+                <div class="section">
+                <h3>注意</h3>
+                <ol>
+                <li>只处理_DSC开头、带数字后缀的文件</li>
+                <li>使用上方设置的统一后缀编号（默认为1）</li>
+                <li>如果目标文件已存在，则跳过重命名</li>
+                </ol>
+                </div>
+                </body>
+                </html>
+                """
+            },
+            "process_denoised_jpg": {
+                "title": "处理降噪JPG文件",
+                "message": """
+                <html>
+                <head>
+                <style>
+                table { border-collapse: collapse; margin: 10px 0; }
+                th { background-color: #f2f2f2; padding: 8px; text-align: left; }
+                td { padding: 8px; border: 1px solid #ddd; }
+                .section { margin: 15px 0; }
+                .warning { color: #d9534f; font-weight: bold; }
+                </style>
+                </head>
+                <body>
+                <div class="section">
+                <h3>效果</h3>
+                <p>将降噪处理后的JPG文件重命名为统一格式。</p>
+                </div>
+                
+                <div class="section">
+                <h3>示例</h3>
+                <table>
+                <tr><th>原始文件名</th><th>→</th><th>新文件名</th></tr>
+                <tr><td>_DSC0001-已增强-降噪.jpg</td><td>→</td><td>_DSC0001-1.jpg</td></tr>
+                <tr><td>_DSC0002-已增强-降噪-3.JPG</td><td>→</td><td>_DSC0002-1.JPG</td></tr>
+                </table>
+                </div>
+                
+                <div class="section">
+                <h3>注意</h3>
+                <ol>
+                <li>处理包含"已增强-降噪"字样的JPG文件</li>
+                <li>移除降噪标记，保留DSC编号和统一后缀</li>
+                <li>如果文件带有序号（如-3），也会被移除</li>
+                </ol>
+                </div>
+                </body>
+                </html>
+                """
+            },
+            "delete_denoised_dng": {
+                "title": "删除降噪DNG文件",
+                "message": """
+                <html>
+                <head>
+                <style>
+                table { border-collapse: collapse; margin: 10px 0; }
+                th { background-color: #f2f2f2; padding: 8px; text-align: left; }
+                td { padding: 8px; border: 1px solid #ddd; }
+                .section { margin: 15px 0; }
+                .warning { color: #d9534f; font-weight: bold; }
+                </style>
+                </head>
+                <body>
+                <div class="section">
+                <h3>效果</h3>
+                <p>删除降噪处理后的DNG原始文件。</p>
+                </div>
+                
+                <div class="section">
+                <h3>示例</h3>
+                <table>
+                <tr><th>操作</th><th>文件名</th></tr>
+                <tr><td>删除：</td><td>_DSC0001-已增强-降噪.dng</td></tr>
+                <tr><td>删除：</td><td>_DSC0002-已增强-降噪.DNG</td></tr>
+                </table>
+                </div>
+                
+                <div class="section">
+                <h3>注意</h3>
+                <ol>
+                <li><span class="warning">永久删除文件，无法恢复！</span></li>
+                <li>只删除_DSC开头、包含"已增强-降噪"的DNG文件</li>
+                <li>建议在处理前备份重要文件</li>
+                </ol>
+                </div>
+                </body>
+                </html>
+                """
+            },
+            "remove_date_prefix": {
+                "title": "移除日期前缀",
+                "message": """
+                <html>
+                <head>
+                <style>
+                table { border-collapse: collapse; margin: 10px 0; }
+                th { background-color: #f2f2f2; padding: 8px; text-align: left; }
+                td { padding: 8px; border: 1px solid #ddd; }
+                .section { margin: 15px 0; }
+                .warning { color: #d9534f; font-weight: bold; }
+                </style>
+                </head>
+                <body>
+                <div class="section">
+                <h3>效果</h3>
+                <p>移除文件名开头的日期前缀。</p>
+                </div>
+                
+                <div class="section">
+                <h3>示例</h3>
+                <table>
+                <tr><th>原始文件名</th><th>→</th><th>新文件名</th></tr>
+                <tr><td>2025-11-12-test.jpg</td><td>→</td><td>test.jpg</td></tr>
+                <tr><td>20251112+photo.dng</td><td>→</td><td>photo.dng</td></tr>
+                </table>
+                </div>
+                
+                <div class="section">
+                <h3>注意</h3>
+                <ol>
+                <li>支持多种日期格式（可自定义）</li>
+                <li>默认支持：YYYY-MM-DD- 和 YYYYMMDD+</li>
+                <li>如果目标文件已存在，则跳过重命名</li>
+                </ol>
+                </div>
+                </body>
+                </html>
+                """
+            }
+        }
+        
+        if option_type in help_messages:
+            help_info = help_messages[option_type]
+            QMessageBox.information(self, help_info["title"], help_info["message"])
+
     def get_photo_suffix_options(self):
         """获取照片后缀剪切配置选项"""
         # 解析日期前缀模式
@@ -437,7 +670,23 @@ class MainWindow(QMainWindow):
         
         # 解析文件扩展名
         extensions_text = self.file_extensions_edit.text().strip()
-        extensions = [ext.strip() for ext in extensions_text.split(',') if ext.strip()]
+        extensions = []
+        for ext in extensions_text.split(','):
+            ext = ext.strip()
+            if ext:
+                # 添加小写版本
+                extensions.append(ext.lower())
+                # 如果扩展名是小写，自动添加大写版本
+                if ext.islower():
+                    extensions.append(ext.upper())
+        
+        # 去重并保持顺序
+        seen = set()
+        unique_extensions = []
+        for ext in extensions:
+            if ext not in seen:
+                seen.add(ext)
+                unique_extensions.append(ext)
         
         return {
             'rename_dsc_files': self.rename_dsc_check.isChecked(),
@@ -446,5 +695,5 @@ class MainWindow(QMainWindow):
             'delete_denoised_dng': self.delete_denoised_dng_check.isChecked(),
             'remove_date_prefix': self.remove_date_prefix_check.isChecked(),
             'date_prefix_patterns': date_patterns,
-            'file_extensions': extensions
+            'file_extensions': unique_extensions
         }
