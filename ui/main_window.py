@@ -193,23 +193,29 @@ class MainWindow(QMainWindow):
         self.photo_suffix_config_group.setVisible(False)
         config_layout = QFormLayout(self.photo_suffix_config_group)
         
+        # 文件名前缀配置
+        self.file_prefix_combo = QComboBox()
+        self.file_prefix_combo.setEditable(True)  # 允许自定义输入
+        self.file_prefix_combo.setToolTip("选择或输入文件名前缀，支持自定义")
+        config_layout.addRow("文件名前缀:", self.file_prefix_combo)
+        
         # 后缀编号配置
         self.suffix_number_spin = QSpinBox()
         self.suffix_number_spin.setRange(1, 999)
         self.suffix_number_spin.setValue(1)
-        self.suffix_number_spin.setToolTip("设置DSC文件的后缀编号（如-1、-2等）")
+        self.suffix_number_spin.setToolTip("设置文件的后缀编号（如-1、-2等）")
         config_layout.addRow("后缀编号:", self.suffix_number_spin)
         
         # 功能复选框（带帮助按钮）
-        self.rename_dsc_check = QCheckBox("重命名DSC文件")
-        self.rename_dsc_check.setChecked(True)
-        self.rename_dsc_check.setToolTip("将_DSC0001-2.jpg等文件重命名为统一后缀")
+        self.rename_jpg_check = QCheckBox("重命名JPG文件")
+        self.rename_jpg_check.setChecked(True)
+        self.rename_jpg_check.setToolTip("将带前缀的文件重命名为统一后缀")
         rename_layout = QHBoxLayout()
-        rename_layout.addWidget(self.rename_dsc_check)
+        rename_layout.addWidget(self.rename_jpg_check)
         self.rename_help_btn = QPushButton("?")
         self.rename_help_btn.setFixedSize(25, 25)
         self.rename_help_btn.setToolTip("点击查看详细说明")
-        self.rename_help_btn.clicked.connect(lambda: self.show_option_help("rename_dsc"))
+        self.rename_help_btn.clicked.connect(lambda: self.show_option_help("rename_jpg"))
         rename_layout.addWidget(self.rename_help_btn)
         rename_layout.addStretch()
         config_layout.addRow("", rename_layout)
@@ -452,9 +458,86 @@ class MainWindow(QMainWindow):
                         self.models[path] = model
                         
                 self.update_root_list()
+                
+                # 加载自定义前缀
+                if "custom_prefixes" in config:
+                    self.load_custom_prefixes(config["custom_prefixes"])
+                    
                 self.statusBar.showMessage(f'已加载 {len(self.root_paths)} 个文件夹')
             except Exception as e:
                 print(f"加载配置失败: {e}")
+        
+        # 初始化前缀组合框（如果配置中没有或加载失败）
+        if not hasattr(self, 'file_prefix_combo') or self.file_prefix_combo.count() == 0:
+            self.init_prefix_combo()
+            
+    def init_prefix_combo(self):
+        """初始化前缀组合框"""
+        # 默认前缀列表
+        default_prefixes = ["_DSC", "_Z8", "_Z72", "_A3R3", "_ILCE-7M4"]
+        
+        # 清除现有项目
+        self.file_prefix_combo.clear()
+        
+        # 添加默认前缀
+        for prefix in default_prefixes:
+            self.file_prefix_combo.addItem(prefix)
+        
+        # 设置默认值
+        self.file_prefix_combo.setCurrentText("_DSC")
+        
+        # 加载已保存的自定义前缀
+        self.load_saved_custom_prefixes()
+    
+    def load_custom_prefixes(self, prefixes):
+        """加载自定义前缀到组合框"""
+        if hasattr(self, 'file_prefix_combo'):
+            # 添加自定义前缀（去重）
+            current_items = [self.file_prefix_combo.itemText(i) for i in range(self.file_prefix_combo.count())]
+            for prefix in prefixes:
+                if prefix not in current_items:
+                    self.file_prefix_combo.addItem(prefix)
+    
+    def load_saved_custom_prefixes(self):
+        """从配置文件加载已保存的自定义前缀"""
+        if os.path.exists(self.config_file):
+            try:
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                    if "custom_prefixes" in config:
+                        self.load_custom_prefixes(config["custom_prefixes"])
+            except Exception as e:
+                print(f"加载自定义前缀失败: {e}")
+    
+    def save_custom_prefixes(self):
+        """保存自定义前缀到配置文件"""
+        if os.path.exists(self.config_file):
+            try:
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            except Exception as e:
+                config = {}
+        else:
+            config = {}
+        
+        # 获取当前组合框中的所有项目
+        all_prefixes = [self.file_prefix_combo.itemText(i) for i in range(self.file_prefix_combo.count())]
+        
+        # 获取默认前缀列表
+        default_prefixes = ["_DSC", "_Z8", "_Z72", "_A3R3", "_ILCE-7M4"]
+        
+        # 筛选出自定义前缀（不在默认列表中的）
+        custom_prefixes = [prefix for prefix in all_prefixes if prefix not in default_prefixes]
+        
+        # 更新配置
+        config["custom_prefixes"] = custom_prefixes
+        
+        # 保存配置
+        try:
+            with open(self.config_file, 'w', encoding='utf-8') as f:
+                json.dump(config, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"保存自定义前缀失败: {e}")
     
     def toggle_option_group(self, checked, group):
         """切换选项组的可见性"""
