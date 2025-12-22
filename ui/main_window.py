@@ -1120,8 +1120,8 @@ class MainWindow(QMainWindow):
                     background-color: #f0f0f0;
                 }
             """)
-            # 连接到跳转函数，传递绝对路径
-            btn.clicked.connect(lambda checked, p=path: self.navigate_to_path(p))
+            # 修复lambda函数：使用默认参数正确捕获路径
+            btn.clicked.connect(lambda checked, path=path: self.navigate_to_path(path))
             self.breadcrumb_layout.addWidget(btn)
             
             # 添加分隔符（如果不是最后一个）
@@ -1133,26 +1133,18 @@ class MainWindow(QMainWindow):
         # 添加伸缩项以确保面包屑不会过度拉伸
         self.breadcrumb_layout.addStretch()
 
-    def navigate_to_index(self, index):
-        """导航到指定的索引"""
-        if index.isValid():
-            self.tree_view.setCurrentIndex(index)
-            self.tree_view.scrollTo(index)
-            # 展开到该索引
-            parent = index.parent()
-            while parent.isValid():
-                self.tree_view.expand(parent)
-                parent = parent.parent()
-            # 更新面包屑
-            self.update_breadcrumb(index)
-
     def navigate_to_path(self, path):
         """通过绝对路径导航"""
         model = self.tree_view.model()
         if model:
             index = model.index(path)
             if index.isValid():
-                self.navigate_to_index(index)
+                # 设置该路径为根索引
+                self.tree_view.setRootIndex(index)
+                # 更新面包屑导航
+                self.update_breadcrumb(index)
+                # 更新状态栏
+                self.statusBar.showMessage(f'当前文件夹: {path}')
 
     def on_root_selected(self, index):
         # 获取选中的根目录路径
