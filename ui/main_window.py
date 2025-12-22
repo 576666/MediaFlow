@@ -235,15 +235,25 @@ class MainWindow(QMainWindow):
         self.tree_view = QTreeView()
         self.tree_view.setHeaderHidden(True)
         self.tree_view.doubleClicked.connect(self.open_file)  # 双击打开文件
+        self.tree_view.clicked.connect(self.on_tree_item_clicked)  # 单击处理
         
         # 文件列表视图（用于显示根目录）
         self.list_view = QListView()
         self.list_view.setViewMode(QListView.ListMode)  # 改为列表模式
         self.list_view.clicked.connect(self.on_root_selected)
         
+        # 面包屑导航
+        breadcrumb_container = QWidget()
+        breadcrumb_layout = QHBoxLayout(breadcrumb_container)
+        breadcrumb_layout.setContentsMargins(0, 0, 0, 0)
+        breadcrumb_layout.setSpacing(2)
+        self.breadcrumb_layout = breadcrumb_layout
+        self.breadcrumb_container = breadcrumb_container
+        
         layout.addWidget(QLabel("根目录:"))
         layout.addWidget(self.list_view)
         layout.addWidget(QLabel("目录结构:"))
+        layout.addWidget(self.breadcrumb_container)
         layout.addWidget(self.tree_view)
         
         return group_box
@@ -528,33 +538,6 @@ class MainWindow(QMainWindow):
             
         self.list_view.setModel(model)
     
-    def on_root_selected(self, index):
-        # 获取选中的根目录路径
-        model = self.list_view.model()
-        if model:
-            item = model.itemFromIndex(index)
-            folder_path = item.data(Qt.UserRole)
-            
-            # 获取该根目录对应的模型
-            fs_model = self.models.get(folder_path)
-            if not fs_model:
-                # 如果模型不存在，创建一个新的
-                fs_model = QFileSystemModel()
-                fs_model.setRootPath(QDir.rootPath())
-                self.models[folder_path] = fs_model
-                
-            # 更新树视图，显示选中的根目录内容
-            self.tree_view.setModel(fs_model)
-            self.tree_view.setRootIndex(fs_model.index(folder_path))
-            self.tree_view.setHeaderHidden(False)
-            
-            # 调整列宽以优化显示效果
-            self.tree_view.header().setSectionResizeMode(0, QHeaderView.Stretch)
-            self.tree_view.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
-            self.tree_view.header().setSectionResizeMode(2, QHeaderView.ResizeToContents)
-            self.tree_view.header().setSectionResizeMode(3, QHeaderView.ResizeToContents)
-            
-            self.statusBar.showMessage(f'当前文件夹: {folder_path}')
     
     def open_file(self, index):
         """双击文件时使用默认程序打开"""
@@ -1067,3 +1050,125 @@ class MainWindow(QMainWindow):
             'date_prefix_patterns': date_patterns,
             'file_extensions': unique_extensions
         }
+
+    def on_tree_item_clicked(self, index):
+        """树视图单击事件处理：单击文件夹时展开/折叠"""
+        if index.isValid():
+            model = self.tree_view.model()
+            if model:
+                # 检查是否为目录
+                file_path = model.filePath(index)
+                file_info = QFileInfo(file_path)
+                if file_info.isDir():
+                    # 切换展开/折叠状态
+                    if self.tree_view.isExpanded(index):
+                        self.tree_view.collapse(index)
+                    else:
+                        self.tree_view.expand(index)
+                    # 更新面包屑导航
+                    self.update_breadcrumb(index)
+
+    def update_breadcrumb(self, index):
+        """更新面包屑导航"""
+        # 清除现有的面包屑部件
+        while self.breadcrumb_layout.count():
+            child = self.breadcrumb_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+        
+        if not index.isValid():
+            return
+        
+        model = self.tree_view.model()
+        if not model:
+            return
+        
+        # 收集从根到当前索引的路径（绝对路径）
+        path_parts = []
+        absolute_paths = []
+        current = index
+        while current.isValid():
+            path_parts.insert(0, model.fileName(current))
+            absolute_paths.insert(0, model.filePath(current))
+            current = current.parent()
+        
+        # 为每个部分创建面包屑按钮
+        for i, (part, path) in enumerate(zip(path_parts, absolute_paths)):
+            btn = QPushButton(part)
+            btn.setFlat(True)
+            btn.setStyleSheet("""
+                QPushButton {
+                    border: none;
+                    padding: 2px 5px;
+                    color: #0078d7;
+                    text-decoration: underline;
+                }
+                QPushButton:hover {
+                    background-color: #f0f0f0;
+                }
+            """)
+            # 连接到跳转函数，传递绝对路径
+            btn.clicked.connect(lambda checked, p=path: self.navigate_to_path(p))
+            self.breadcrumb_layout.addWidget(btn)
+            
+            # 添加分隔符（如果不是最后一个）
+            if i < len(path_parts) - 1:
+                separator = QLabel(">")
+                separator.setStyleSheet("color: #666; padding: 0 2px;")
+                self.breadcrumb_layout.addWidget(separator)
+        
+        # 添加伸缩项以确保面包屑不会过度拉伸
+        self.breadcrumb_layout.addStretch()
+
+    def navigate_to_index(self, index):
+        """导航到指定的索引"""
+        if index.isValid():
+            self.tree_view.setCurrentIndex(index)
+            self.tree_view.scrollTo(index)
+            # 展开到该索引
+            parent = index.parent()
+            while parent.isValid():
+                self.tree_view.expand(parent)
+                parent = parent.parent()
+            # 更新面包屑
+            self.update_breadcrumb(index)
+
+    def navigate_to_path(self, path):
+        """通过绝对路径导航"""
+        model = self.tree_view.model()
+        if model:
+            index = model.index(path)
+            if index.isValid():
+                self.navigate_to_index(index)
+
+    def on_root_selected(self, index):
+        # 获取选中的根目录路径
+        model = self.list_view.model()
+        if model:
+            item = model.itemFromIndex(index)
+            folder_path = item.data(Qt.UserRole)
+            
+            # 获取该根目录对应的模型
+            fs_model = self.models.get(folder_path)
+            if not fs_model:
+                # 如果模型不存在，创建一个新的
+                fs_model = QFileSystemModel()
+                fs_model.setRootPath(QDir.rootPath())
+                self.models[folder_path] = fs_model
+                
+            # 更新树视图，显示选中的根目录内容
+            self.tree_view.setModel(fs_model)
+            self.tree_view.setRootIndex(fs_model.index(folder_path))
+            self.tree_view.setHeaderHidden(False)
+            
+            # 调整列宽以优化显示效果
+            self.tree_view.header().setSectionResizeMode(0, QHeaderView.Stretch)
+            self.tree_view.header().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+            self.tree_view.header().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+            self.tree_view.header().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+            
+            # 更新面包屑导航
+            root_index = fs_model.index(folder_path)
+            self.update_breadcrumb(root_index)
+            
+            self.statusBar.showMessage(f'当前文件夹: {folder_path}')
