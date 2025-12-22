@@ -509,10 +509,54 @@ class MainWindow(QMainWindow):
         group_box = QGroupBox("预览")
         layout = QVBoxLayout(group_box)
         
+        # 创建预览按钮容器（带边框）
+        preview_button_container = QWidget()
+        preview_button_container.setStyleSheet("""
+            QWidget {
+                border: 1px solid #cccccc;
+                border-radius: 4px;
+                background-color: #f8f9fa;
+                padding: 5px;
+            }
+        """)
+        preview_button_layout = QHBoxLayout(preview_button_container)
+        preview_button_layout.setContentsMargins(5, 5, 5, 5)
+        
+        # 预览按钮
+        self.preview_button = QPushButton("预览效果")
+        self.preview_button.setToolTip("预览处理后文件名的变化")
+        self.preview_button.clicked.connect(self.preview_processing)
+        self.preview_button.setStyleSheet("""
+            QPushButton {
+                background-color: #0078d7;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #005a9e;
+            }
+            QPushButton:pressed {
+                background-color: #004578;
+            }
+        """)
+        
+        # 添加一些说明文本
+        preview_label = QLabel("点击预览按钮查看处理后文件名的变化：")
+        preview_label.setStyleSheet("color: #666666;")
+        
+        preview_button_layout.addWidget(preview_label)
+        preview_button_layout.addStretch()
+        preview_button_layout.addWidget(self.preview_button)
+        
         # 添加预览文本区域
         self.preview_text = QTextEdit()
         self.preview_text.setReadOnly(True)
         self.preview_text.setPlainText("在此处预览批处理操作的效果...")
+        
+        layout.addWidget(preview_button_container)
         layout.addWidget(self.preview_text)
         
         return group_box
@@ -1177,3 +1221,153 @@ class MainWindow(QMainWindow):
             self.update_breadcrumb(root_index)
             
             self.statusBar.showMessage(f'当前文件夹: {folder_path}')
+
+    def preview_processing(self):
+        """预览处理后文件名的变化"""
+        # 获取当前树视图的根目录路径
+        model = self.tree_view.model()
+        if not model:
+            self.preview_text.setPlainText("错误：没有加载任何文件夹")
+            return
+        
+        root_index = self.tree_view.rootIndex()
+        if not root_index.isValid():
+            self.preview_text.setPlainText("错误：请先选择一个文件夹")
+            return
+        
+        folder_path = model.filePath(root_index)
+        if not folder_path or not os.path.exists(folder_path):
+            self.preview_text.setPlainText("错误：文件夹不存在")
+            return
+        
+        # 检查是否选择了照片后缀剪切处理器
+        if not self.image_radio.isChecked() or not self.photo_suffix_cut.isChecked():
+            self.preview_text.setPlainText("错误：请先选择'图像'类型和'照片后缀剪切'选项")
+            return
+        
+        # 获取配置选项
+        options = self.get_photo_suffix_options()
+        
+        # 收集预览结果
+        preview_results = []
+        file_count = 0
+        processed_count = 0
+        
+        # 获取配置的文件扩展名（不区分大小写）
+        extensions = options.get('file_extensions', [])
+        extensions_lower = [ext.lower() for ext in extensions]
+        
+        # 遍历文件夹中的文件
+        for filename in os.listdir(folder_path):
+            file_count += 1
+            original_name = filename
+            new_name = filename  # 默认不变
+            
+            # 检查文件扩展名是否在配置的扩展名列表中
+            file_ext = os.path.splitext(filename)[1]
+            if file_ext.lower() not in extensions_lower:
+                # 不在处理范围内的文件，跳过
+                continue
+            
+            # 1. 重命名JPG文件（如果启用）
+            if options['rename_jpg_files']:
+                new_name = self._preview_rename_jpg(filename, options)
+            
+            # 2. 处理降噪JPG文件（如果启用）
+            if options['process_denoised_jpg'] and new_name == filename:
+                # 如果前面的处理没有改变文件名，才检查降噪文件
+                new_name = self._preview_process_denoised_jpg(filename, options)
+            
+            # 3. 移除日期前缀（如果启用）
+            if options['remove_date_prefix'] and new_name == filename:
+                # 如果前面的处理没有改变文件名，才检查日期前缀
+                new_name = self._preview_remove_date_prefix(filename, options)
+            
+            # 如果文件名有变化，添加到结果
+            if new_name != original_name:
+                processed_count += 1
+                preview_results.append(f"{original_name}  →  {new_name}")
+        
+        # 4. 删除降噪DNG文件（如果启用） - 在预览中显示将被删除的文件
+        if options['delete_denoised_dng']:
+            deleted_files = []
+            for filename in os.listdir(folder_path):
+                file_ext = os.path.splitext(filename)[1]
+                if file_ext.lower() not in extensions_lower:
+                    continue
+                
+                # 检查是否为降噪DNG文件
+                import re
+                if re.match(r'(_DSC\d{4})-已增强-降噪\.dng$', filename, re.IGNORECASE):
+                    deleted_files.append(filename)
+            
+            if deleted_files:
+                preview_results.append("\n--- 以下文件将被删除 ---")
+                for filename in deleted_files:
+                    preview_results.append(f"[删除] {filename}")
+        
+        # 生成预览文本
+        if preview_results:
+            summary = f"预览结果（文件夹：{os.path.basename(folder_path)}）\n"
+            summary += f"总文件数：{file_count}，预计处理文件数：{processed_count}\n"
+            summary += "=" * 50 + "\n"
+            preview_text = summary + "\n".join(preview_results)
+        else:
+            preview_text = f"预览结果（文件夹：{os.path.basename(folder_path)}）\n"
+            preview_text += f"总文件数：{file_count}，没有需要处理的文件。\n"
+            preview_text += "请检查配置选项或文件扩展名设置。"
+        
+        self.preview_text.setPlainText(preview_text)
+        self.statusBar.showMessage(f'预览完成：{processed_count}个文件将被处理')
+
+    def _preview_rename_jpg(self, filename, options):
+        """预览重命名JPG文件"""
+        import re
+        
+        file_prefix = options.get('file_prefix', '_DSC')
+        suffix_number = options.get('dsc_suffix_number', 1)
+        file_ext = os.path.splitext(filename)[1]
+        
+        # 转义特殊字符
+        escaped_prefix = re.escape(file_prefix)
+        escaped_ext = re.escape(file_ext)
+        
+        # 匹配模式：前缀 + 4位数字 + '-' + 数字 + 扩展名
+        pattern = r'(' + escaped_prefix + r'\d{4})-(\d+)' + escaped_ext + r'$'
+        match = re.match(pattern, filename, re.IGNORECASE)
+        if match:
+            prefix_number = match.group(1)  # 例如 _DSC0001
+            new_base = f"{prefix_number}-{suffix_number}"
+            return new_base + file_ext
+        
+        return filename
+
+    def _preview_process_denoised_jpg(self, filename, options):
+        """预览处理降噪JPG文件"""
+        import re
+        
+        suffix_number = options.get('dsc_suffix_number', 1)
+        file_ext = os.path.splitext(filename)[1]
+        
+        # 匹配降噪JPG文件，如 _DSC0001-已增强-降噪.jpg 或 _DSC0001-已增强-降噪-3.jpg
+        match = re.match(r'(_DSC\d{4})-已增强-降噪(-(\d+))?\.jpg$', filename, re.IGNORECASE)
+        if match:
+            dsc_number = match.group(1)
+            return f"{dsc_number}-{suffix_number}{file_ext}"
+        
+        return filename
+
+    def _preview_remove_date_prefix(self, filename, options):
+        """预览移除日期前缀"""
+        import re
+        
+        date_patterns = options.get('date_prefix_patterns', [])
+        
+        for pattern in date_patterns:
+            match = re.match(pattern, filename)
+            if match:
+                # 计算匹配的日期前缀长度
+                match_end = match.end()
+                return filename[match_end:]  # 移除日期前缀
+        
+        return filename
