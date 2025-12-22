@@ -234,7 +234,11 @@ class MainWindow(QMainWindow):
         # 文件树视图
         self.tree_view = QTreeView()
         self.tree_view.setHeaderHidden(True)
-        self.tree_view.doubleClicked.connect(self.open_file)  # 双击打开文件
+        # 禁用双击展开文件夹的功能
+        self.tree_view.setExpandsOnDoubleClick(False)
+        # 隐藏展开箭头
+        self.tree_view.setRootIsDecorated(False)
+        self.tree_view.doubleClicked.connect(self.on_item_double_clicked)  # 双击处理
         self.tree_view.clicked.connect(self.on_tree_item_clicked)  # 单击处理
         
         # 文件列表视图（用于显示根目录）
@@ -561,6 +565,25 @@ class MainWindow(QMainWindow):
                     self.statusBar.showMessage(f'已打开文件: {file_path}')
                 except Exception as e:
                     self.statusBar.showMessage(f'打开文件失败: {str(e)}')
+
+    def on_item_double_clicked(self, index):
+        """树视图双击事件处理：双击文件夹进入，双击文件打开"""
+        if index.isValid():
+            model = self.tree_view.model()
+            if model:
+                file_path = model.filePath(index)
+                file_info = QFileInfo(file_path)
+                
+                if file_info.isDir():
+                    # 双击文件夹：进入该文件夹
+                    self.tree_view.setRootIndex(index)
+                    # 更新面包屑导航
+                    self.update_breadcrumb(index)
+                    # 更新状态栏
+                    self.statusBar.showMessage(f'当前文件夹: {file_path}')
+                else:
+                    # 双击文件：使用默认程序打开
+                    self.open_file(index)
     
     def save_config(self):
         config = {
@@ -1052,21 +1075,11 @@ class MainWindow(QMainWindow):
         }
 
     def on_tree_item_clicked(self, index):
-        """树视图单击事件处理：单击文件夹时展开/折叠"""
+        """树视图单击事件处理：单击只选中，不展开也不进入目录"""
         if index.isValid():
-            model = self.tree_view.model()
-            if model:
-                # 检查是否为目录
-                file_path = model.filePath(index)
-                file_info = QFileInfo(file_path)
-                if file_info.isDir():
-                    # 切换展开/折叠状态
-                    if self.tree_view.isExpanded(index):
-                        self.tree_view.collapse(index)
-                    else:
-                        self.tree_view.expand(index)
-                    # 更新面包屑导航
-                    self.update_breadcrumb(index)
+            # 只选中，不展开也不进入目录
+            self.tree_view.setCurrentIndex(index)
+            self.tree_view.scrollTo(index)
 
     def update_breadcrumb(self, index):
         """更新面包屑导航"""
