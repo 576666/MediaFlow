@@ -16,7 +16,8 @@ from PyQt5.QtWidgets import (QMainWindow, QTreeView, QFileSystemModel,
                              QHeaderView, QTextEdit, QSplitter, QDialog, 
                              QTableWidget, QTableWidgetItem, QDialogButtonBox,
                              QMessageBox, QLineEdit, QComboBox, QRadioButton, 
-                             QButtonGroup, QCheckBox, QSpinBox, QScrollArea, QFormLayout)
+                             QButtonGroup, QCheckBox, QSpinBox, QScrollArea, QFormLayout,
+                             QShortcut)
 from PyQt5.QtCore import QDir, Qt, QFileInfo, pyqtSignal
 from PyQt5.QtGui import QKeySequence, QStandardItemModel, QStandardItem
 
@@ -177,6 +178,9 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self.statusBar)
         self.statusBar.showMessage('就绪')
         
+        # 添加快捷键：Ctrl+D 和 Delete 键删除选中的文件夹
+        self.setup_shortcuts()
+        
     def create_menu_bar(self):
         menu_bar = self.menuBar()
         
@@ -241,10 +245,26 @@ class MainWindow(QMainWindow):
         self.tree_view.doubleClicked.connect(self.on_item_double_clicked)  # 双击处理
         self.tree_view.clicked.connect(self.on_tree_item_clicked)  # 单击处理
         
+        # 根目录列表和删除按钮容器
+        root_directory_container = QWidget()
+        root_directory_layout = QHBoxLayout(root_directory_container)
+        root_directory_layout.setContentsMargins(0, 0, 0, 0)
+        
         # 文件列表视图（用于显示根目录）
         self.list_view = QListView()
         self.list_view.setViewMode(QListView.ListMode)  # 改为列表模式
+        self.list_view.setSelectionMode(QAbstractItemView.SingleSelection)  # 单选模式
         self.list_view.clicked.connect(self.on_root_selected)
+        # 选中项变化时更新删除按钮状态（在update_root_list中连接）
+        
+        # 删除按钮
+        self.delete_folder_btn = QPushButton("删除")
+        self.delete_folder_btn.setToolTip("删除选中的文件夹（或使用 Ctrl+D / Delete 键）")
+        self.delete_folder_btn.clicked.connect(self.delete_selected_folder)
+        self.delete_folder_btn.setEnabled(False)  # 初始禁用，直到有选中项
+        
+        root_directory_layout.addWidget(self.list_view)
+        root_directory_layout.addWidget(self.delete_folder_btn)
         
         # 面包屑导航
         breadcrumb_container = QWidget()
@@ -255,7 +275,7 @@ class MainWindow(QMainWindow):
         self.breadcrumb_container = breadcrumb_container
         
         layout.addWidget(QLabel("根目录:"))
-        layout.addWidget(self.list_view)
+        layout.addWidget(root_directory_container)
         layout.addWidget(QLabel("目录结构:"))
         layout.addWidget(self.breadcrumb_container)
         layout.addWidget(self.tree_view)
@@ -585,6 +605,10 @@ class MainWindow(QMainWindow):
             model.appendRow(item)
             
         self.list_view.setModel(model)
+        
+        # 连接选中项变化信号以更新删除按钮状态
+        if self.list_view.selectionModel():
+            self.list_view.selectionModel().selectionChanged.connect(self.on_root_selection_changed)
     
     
     def open_file(self, index):
@@ -1222,6 +1246,64 @@ class MainWindow(QMainWindow):
             
             self.statusBar.showMessage(f'当前文件夹: {folder_path}')
 
+    def on_root_selection_changed(self):
+        """根目录选中项变化时更新删除按钮状态"""
+        has_selection = self.list_view.selectionModel().hasSelection()
+        self.delete_folder_btn.setEnabled(has_selection)
+
+    def delete_selected_folder(self):
+        """删除选中的根目录"""
+        # 获取当前选中的索引
+        selected_indexes = self.list_view.selectionModel().selectedIndexes()
+        if not selected_indexes:
+            QMessageBox.warning(self, "警告", "请先选择一个文件夹")
+            return
+        
+        index = selected_indexes[0]
+        model = self.list_view.model()
+        if not model:
+            return
+        
+        item = model.itemFromIndex(index)
+        folder_path = item.data(Qt.UserRole)
+        folder_name = item.text()
+        
+        # 确认删除对话框
+        reply = QMessageBox.question(
+            self, 
+            "确认删除", 
+            f"确定要从列表中删除文件夹 '{folder_name}' 吗？\n\n注意：这只会从列表中移除，不会删除实际文件。",
+            QMessageBox.Yes | QMessageBox.No, 
+            QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            # 从根目录列表中移除
+            if folder_path in self.root_paths:
+                self.root_paths.remove(folder_path)
+            
+            # 从模型字典中移除
+            if folder_path in self.models:
+                del self.models[folder_path]
+            
+            # 更新列表显示
+            self.update_root_list()
+            
+            # 保存配置
+            self.save_config()
+            
+            # 更新状态栏
+            self.statusBar.showMessage(f'已从列表中移除文件夹: {folder_name}')
+            
+            # 如果没有选中的根目录，重置树视图
+            if not self.root_paths:
+                self.tree_view.setModel(None)
+                # 清除面包屑导航
+                while self.breadcrumb_layout.count():
+                    child = self.breadcrumb_layout.takeAt(0)
+                    if child.widget():
+                        child.widget().deleteLater()
+
     def preview_processing(self):
         """预览处理后文件名的变化"""
         # 获取当前树视图的根目录路径
@@ -1371,3 +1453,13 @@ class MainWindow(QMainWindow):
                 return filename[match_end:]  # 移除日期前缀
         
         return filename
+
+    def setup_shortcuts(self):
+        """设置快捷键"""
+        # Ctrl+D 删除选中的文件夹
+        ctrl_d_shortcut = QShortcut(QKeySequence("Ctrl+D"), self)
+        ctrl_d_shortcut.activated.connect(self.delete_selected_folder)
+        
+        # Delete 键删除选中的文件夹
+        delete_shortcut = QShortcut(QKeySequence("Delete"), self)
+        delete_shortcut.activated.connect(self.delete_selected_folder)
