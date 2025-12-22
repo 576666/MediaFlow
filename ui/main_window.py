@@ -245,11 +245,6 @@ class MainWindow(QMainWindow):
         self.tree_view.doubleClicked.connect(self.on_item_double_clicked)  # 双击处理
         self.tree_view.clicked.connect(self.on_tree_item_clicked)  # 单击处理
         
-        # 根目录列表和删除按钮容器
-        root_directory_container = QWidget()
-        root_directory_layout = QHBoxLayout(root_directory_container)
-        root_directory_layout.setContentsMargins(0, 0, 0, 0)
-        
         # 文件列表视图（用于显示根目录）
         self.list_view = QListView()
         self.list_view.setViewMode(QListView.ListMode)  # 改为列表模式
@@ -263,8 +258,13 @@ class MainWindow(QMainWindow):
         self.delete_folder_btn.clicked.connect(self.delete_selected_folder)
         self.delete_folder_btn.setEnabled(False)  # 初始禁用，直到有选中项
         
-        root_directory_layout.addWidget(self.list_view)
-        root_directory_layout.addWidget(self.delete_folder_btn)
+        # 根目录标题行：标签 + 删除按钮
+        header_container = QWidget()
+        header_layout = QHBoxLayout(header_container)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.addWidget(QLabel("根目录:"))
+        header_layout.addStretch()
+        header_layout.addWidget(self.delete_folder_btn)
         
         # 面包屑导航
         breadcrumb_container = QWidget()
@@ -274,11 +274,12 @@ class MainWindow(QMainWindow):
         self.breadcrumb_layout = breadcrumb_layout
         self.breadcrumb_container = breadcrumb_container
         
-        layout.addWidget(QLabel("根目录:"))
-        layout.addWidget(root_directory_container)
-        layout.addWidget(QLabel("目录结构:"))
-        layout.addWidget(self.breadcrumb_container)
-        layout.addWidget(self.tree_view)
+        # 添加所有部件到主布局
+        layout.addWidget(header_container)      # 根目录标题行（带删除按钮）
+        layout.addWidget(self.list_view)        # 根目录列表
+        layout.addWidget(QLabel("目录结构:"))    # 目录结构标签
+        layout.addWidget(self.breadcrumb_container)  # 面包屑导航
+        layout.addWidget(self.tree_view)        # 文件树视图
         
         return group_box
         
