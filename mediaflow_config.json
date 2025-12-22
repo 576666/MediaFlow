@@ -2,5 +2,7 @@
   "root_paths": [
     "B:/照片录像-省流版本",
     "B:/照片录像-省流版本-纯照片"
-  ]
+  ],
+  "custom_prefixes": [],
+  "custom_suffixes": []
 }

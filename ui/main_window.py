@@ -421,7 +421,7 @@ class MainWindow(QMainWindow):
         
         # 常见照片扩展名
         self.common_ext_buttons = {}
-        common_extensions = ['.jpg', '.dng', '.nef', '.arw', '.xef', '.cr2', '.tif', '.tiff']
+        common_extensions = ['.jpg', '.dng', '.nef', '.arw', '.xef', '.cr2', '.tif']
         for ext in common_extensions:
             btn = QPushButton(ext)
             btn.setCheckable(True)
