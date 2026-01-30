@@ -1,71 +1,89 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-"""
-处理插件基类
-"""
-
 from abc import ABC, abstractmethod
+from typing import List, Dict, Any, Optional
+from PySide6.QtWidgets import QWidget
+from PySide6.QtCore import QObject, Signal
+from dataclasses import dataclass
 
 
-class BaseProcessor(ABC):
-    """
-    处理器插件基类
-    所有具体处理插件都需要继承此类并实现相应方法
-    """
+class ProcessingResult:
+    """处理结果"""
+    task_id: str
+    file_path: str
+    success: bool
+    message: str = ""
+    metadata: Optional[Dict[str, Any]] = None
 
-    def __init__(self):
-        pass
 
+@dataclass
+class MediaTask:
+    """媒体处理任务"""
+    file_path: str
+    config: Dict[str, Any]
+    task_id: str = ""
+
+
+@dataclass
+class PreviewResult:
+    """预览结果"""
+    original_name: str
+    processed_name: str
+    success: bool
+    message: str = ""
+
+
+# 创建一个混合元类，继承自QObject的元类和ABCMeta
+class _QObjectMeta(type(QObject), type(ABC)):
+    pass
+
+class BaseProcessor(QObject, ABC, metaclass=_QObjectMeta):
+    """重构后的处理器基类，支持异步和进度反馈"""
+    
+    # 进度信号
+    progress_changed = Signal(str, float)  # 任务ID, 进度(0.0-1.0)
+    task_completed = Signal(str, ProcessingResult)  # 任务ID, 结果
+    task_failed = Signal(str, str)  # 任务ID, 错误信息
+    
     @property
     @abstractmethod
     def name(self) -> str:
-        """返回处理器名称"""
+        """处理器名称"""
         pass
-
+    
     @property
     @abstractmethod
     def description(self) -> str:
-        """返回处理器描述"""
+        """处理器描述"""
         pass
-
+    
+    @property
     @abstractmethod
-    def process(self, file_path: str) -> bool:
-        """
-        处理单个文件
-        
-        Args:
-            file_path: 文件路径
-            
-        Returns:
-            处理成功返回True，否则返回False
-        """
+    def supported_formats(self) -> List[str]:
+        """支持的文件格式"""
         pass
-
-    def batch_process(self, file_list: list) -> dict:
-        """
-        批量处理文件
-        
-        Args:
-            file_list: 文件路径列表
-            
-        Returns:
-            处理结果字典，包含成功和失败的文件列表
-        """
-        success_list = []
-        failure_list = []
-
-        for file_path in file_list:
-            try:
-                if self.process(file_path):
-                    success_list.append(file_path)
-                else:
-                    failure_list.append(file_path)
-            except Exception as e:
-                print(f"处理文件 {file_path} 时出错: {str(e)}")
-                failure_list.append(file_path)
-
-        return {
-            'success': success_list,
-            'failure': failure_list
-        }
+    
+    @abstractmethod
+    def create_task(self, file_path: str, config: Dict[str, Any]) -> MediaTask:
+        """创建处理任务，而不是直接执行"""
+        pass
+    
+    @abstractmethod
+    def get_config_widget(self) -> QWidget:
+        """返回配置UI控件"""
+        pass
+    
+    @abstractmethod
+    def process_task(self, task: MediaTask) -> ProcessingResult:
+        """处理单个任务"""
+        pass
+    
+    def generate_preview(self, file_path: str, preview_config: Dict[str, Any]) -> PreviewResult:
+        """生成预览效果（可选实现）"""
+        # 默认实现：直接处理小规模数据
+        task = self.create_task(file_path, preview_config)
+        result = self.process_task(task)
+        return PreviewResult(
+            original_name=file_path,
+            processed_name=file_path + "_preview",
+            success=result.success,
+            message=result.message
+        )

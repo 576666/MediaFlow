@@ -1,8 +1,22 @@
 {
-  "root_paths": [
-    "B:/照片录像-省流版本",
-    "B:/照片录像-省流版本-纯照片"
-  ],
-  "custom_prefixes": [],
-  "custom_suffixes": []
+  "system": {
+    "hardware_acceleration": "auto",
+    "max_concurrent_tasks": 4,
+    "cache_size_mb": 1024
+  },
+  "ui": {
+    "theme": "dark",
+    "default_layout": "advanced",
+    "frame_cache_size": 50
+  },
+  "paths": {
+    "default_input": "",
+    "default_output": "{input}/processed",
+    "temp_directory": ""
+  },
+  "encoding": {
+    "default_preset": "medium",
+    "default_crf": 23,
+    "preview_duration_sec": 5
+  }
 }
