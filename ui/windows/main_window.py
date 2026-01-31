@@ -107,9 +107,6 @@ class MainWindow(QMainWindow):
     def _init_actions(self):
         """初始化动作"""
         # 文件操作
-        self.open_action = QAction("打开", self)
-        self.open_action.setShortcut(QKeySequence.StandardKey.Open)
-        self.open_action.setStatusTip("打开媒体文件")
         
         self.add_folder_action = QAction("添加文件夹", self)
         self.add_folder_action.setShortcut(QKeySequence.StandardKey.New)
@@ -142,7 +139,7 @@ class MainWindow(QMainWindow):
         
         # 文件菜单
         file_menu = menubar.addMenu("文件(&F)")
-        file_menu.addAction(self.open_action)
+
         file_menu.addAction(self.add_folder_action)
         file_menu.addSeparator()
         file_menu.addAction(self.save_action)
@@ -161,7 +158,7 @@ class MainWindow(QMainWindow):
     def _init_toolbar(self):
         """初始化工具栏"""
         toolbar = self.addToolBar("主工具栏")
-        toolbar.addAction(self.open_action)
+
         toolbar.addAction(self.add_folder_action)
         toolbar.addSeparator()
         toolbar.addAction(self.preview_action)

@@ -1,0 +1,29 @@
+MediaFlow 启动方式说明
+=======================
+
+我们提供了以下几种启动MediaFlow的方式：
+
+1. run_MediaFlow.bat
+   - 功能：带环境检查的启动脚本
+   - 特点：检查Python环境和依赖，最小化运行Python程序
+   - 适用：首次运行或需要环境检查时
+
+2. start_MediaFlow.bat
+   - 功能：最小化启动Python程序
+   - 特点：启动时窗口最小化，减少命令行窗口显示
+   - 适用：日常使用
+
+3. launch_MediaFlow.vbs
+   - 功能：静默启动Python程序
+   - 特点：几乎不显示命令行窗口
+   - 适用：需要最简洁的启动体验
+
+4. dist/MediaFlow_Full.exe
+   - 功能：独立的可执行文件
+   - 特点：无需Python环境，双击即可运行
+   - 适用：最终用户部署
+
+推荐使用顺序：
+- 首次运行：run_MediaFlow.bat (检查环境)
+- 日常使用：dist/MediaFlow_Full.exe (最佳体验)
+- 便携使用：launch_MediaFlow.vbs (最简洁)
