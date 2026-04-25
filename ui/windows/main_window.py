@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QMessageBox, QFileDialog, QLabel, QFrame, QTreeView,
     QFileSystemModel, QListView, QAbstractItemView, QGroupBox,
     QPushButton, QTextEdit, QLineEdit, QSplitter as QtSplitter, 
-    QHeaderView, QComboBox, QSizePolicy
+    QHeaderView, QComboBox, QSizePolicy, QToolBox, QRadioButton, QButtonGroup
 )
 from PySide6.QtCore import Qt, QDir, QFileInfo, Signal, QModelIndex
 from PySide6.QtGui import QAction, QIcon, QKeySequence, QStandardItemModel, QStandardItem
@@ -354,25 +354,74 @@ class MainWindow(QMainWindow):
 
         # 处理选项
         options_group = QGroupBox("处理选项")
+        options_group.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+        options_group.setMinimumHeight(340)
         options_layout = QVBoxLayout(options_group)
 
-        # 处理器选择
-        processor_label = QLabel("选择处理插件:")
-        options_layout.addWidget(processor_label)
-        
-        self.processor_combo = QComboBox()
-        self.processor_combo.addItems([
-            "视频扩展名转大写 (mp4→MP4)",
-            "视频扩展名转小写 (MP4→mp4)",
-            "照片扩展名转大写 (jpg→JPG)",
-            "照片扩展名转小写 (JPG→jpg)",
-            "照片格式转换 (JPG→PNG)",
-            "照片格式转换 (PNG→JPG)",
-            "照片灰度转换",
-            "目录扁平化",
-            "自动备份(带转码)"
-        ])
-        options_layout.addWidget(self.processor_combo)
+        # 插件选择抽屉
+        self.plugin_group = QButtonGroup(self)
+
+        self.plugin_toolbox = QToolBox()
+        self.plugin_toolbox.setMinimumHeight(260)
+
+        # 照片处理页
+        photo_page = QWidget()
+        photo_page.setMinimumHeight(160)
+        photo_layout = QVBoxLayout(photo_page)
+        photo_layout.setSpacing(10)
+        photo_layout.setContentsMargins(8, 8, 8, 8)
+        photo_options = [
+            ("照片扩展名转大写 (jpg→JPG)", "photo_ext_upper"),
+            ("照片扩展名转小写 (JPG→jpg)", "photo_ext_lower"),
+            ("照片格式转换 (JPG→PNG)", "photo_jpg_to_png"),
+            ("照片格式转换 (PNG→JPG)", "photo_png_to_jpg"),
+            ("照片灰度转换", "photo_grayscale"),
+        ]
+        for text, key in photo_options:
+            rb = QRadioButton(text)
+            rb.setProperty("plugin_key", key)
+            self.plugin_group.addButton(rb)
+            photo_layout.addWidget(rb)
+        photo_layout.addStretch()
+        self.plugin_toolbox.addItem(photo_page, "📷 照片处理")
+
+        # 视频处理页
+        video_page = QWidget()
+        video_page.setMinimumHeight(160)
+        video_layout = QVBoxLayout(video_page)
+        video_layout.setSpacing(10)
+        video_layout.setContentsMargins(8, 8, 8, 8)
+        video_options = [
+            ("视频扩展名转大写 (mp4→MP4)", "video_ext_upper"),
+            ("视频扩展名转小写 (MP4→mp4)", "video_ext_lower"),
+        ]
+        for text, key in video_options:
+            rb = QRadioButton(text)
+            rb.setProperty("plugin_key", key)
+            self.plugin_group.addButton(rb)
+            video_layout.addWidget(rb)
+        video_layout.addStretch()
+        self.plugin_toolbox.addItem(video_page, "🎬 视频处理")
+
+        # 混合处理页
+        mixed_page = QWidget()
+        mixed_page.setMinimumHeight(160)
+        mixed_layout = QVBoxLayout(mixed_page)
+        mixed_layout.setSpacing(10)
+        mixed_layout.setContentsMargins(8, 8, 8, 8)
+        mixed_options = [
+            ("目录扁平化", "mixed_flatten"),
+            ("自动备份(带转码)", "mixed_backup"),
+        ]
+        for text, key in mixed_options:
+            rb = QRadioButton(text)
+            rb.setProperty("plugin_key", key)
+            self.plugin_group.addButton(rb)
+            mixed_layout.addWidget(rb)
+        mixed_layout.addStretch()
+        self.plugin_toolbox.addItem(mixed_page, "🔄 混合处理")
+
+        options_layout.addWidget(self.plugin_toolbox)
 
         # 按钮行
         button_layout = QHBoxLayout()
