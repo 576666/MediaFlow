@@ -10,8 +10,8 @@ from PySide6.QtWidgets import (
     QMenuBar, QStatusBar, QToolBar, QTabWidget, QDockWidget,
     QMessageBox, QFileDialog, QLabel, QFrame, QTreeView,
     QFileSystemModel, QListView, QAbstractItemView, QGroupBox,
-    QPushButton, QTextEdit, QSplitter as QtSplitter, QHeaderView,
-    QComboBox
+    QPushButton, QTextEdit, QLineEdit, QSplitter as QtSplitter, 
+    QHeaderView, QComboBox, QSizePolicy
 )
 from PySide6.QtCore import Qt, QDir, QFileInfo, Signal, QModelIndex
 from PySide6.QtGui import QAction, QIcon, QKeySequence, QStandardItemModel, QStandardItem
@@ -27,7 +27,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.viewmodel = MainViewModel()
         
-        self.setWindowTitle('MediaFlow - 文件管理器')
+        self.setWindowTitle('MediaFlow - 文管理器')
         self.setGeometry(100, 100, 1400, 900)
         
         # 存储根目录路径
@@ -310,28 +310,40 @@ class MainWindow(QMainWindow):
         title_label.setStyleSheet("font-weight: bold; font-size: 14px;")
         layout.addWidget(title_label)
 
-        # 文件路径配置
-        path_group = QGroupBox("文件路径配置")
+        # 文件路径配置 (紧凑布局)
+        path_group = QGroupBox("文件路径")
         path_layout = QVBoxLayout(path_group)
+        path_layout.setSpacing(14)  # 增加行间距
+        path_layout.setContentsMargins(4, 4, 4, 4)
+        
+        # 限制最大高度
+        from PySide6.QtWidgets import QSizePolicy
+        path_group.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        path_group.setFixedHeight(120)  # 增加高度到120
 
-        # 输入文件夹行 (只读，自动填充)
+        # 输入文件夹行 (只读，自动填充) - 紧凑行
         input_layout = QHBoxLayout()
-        input_label = QLabel("输入文件夹:")
-        self.input_path_edit = QTextEdit()
-        self.input_path_edit.setMaximumHeight(30)
+        input_layout.setSpacing(6)  # 增加间距
+        input_label = QLabel("输入:")
+        input_label.setFixedWidth(30)
+        self.input_path_edit = QLineEdit()  # 用QLineEdit替代，更紧凑
         self.input_path_edit.setReadOnly(True)
-        self.input_path_edit.setPlaceholderText("选择左侧文件或文件夹后自动填充...")
-        input_layout.addWidget(input_label)
-        input_layout.addWidget(self.input_path_edit)
+        self.input_path_edit.setFixedHeight(32)
+        self.input_path_edit.setPlaceholderText("选择后自动填充...")
+        input_layout.addWidget(input_label, 0)
+        input_layout.addWidget(self.input_path_edit, 1)
         path_layout.addLayout(input_layout)
 
-        # 输出文件夹行
+        # 输出文件夹行 - 紧凑行
         output_layout = QHBoxLayout()
-        output_label = QLabel("输出文件夹:")
-        self.output_path_edit = QTextEdit()
-        self.output_path_edit.setMaximumHeight(30)
-        self.output_path_edit.setPlaceholderText("为空则默认与输入相同，在右侧添加processed文件夹...")
-        output_browse_btn = QPushButton("浏览...")
+        output_layout.setSpacing(6)  # 增加间距
+        output_label = QLabel("输出:")
+        output_label.setFixedWidth(30)
+        self.output_path_edit = QLineEdit()  # 用QLineEdit替代
+        self.output_path_edit.setFixedHeight(32)
+        self.output_path_edit.setPlaceholderText("为空则默认同输入...")
+        output_browse_btn = QPushButton("浏览")
+        output_browse_btn.setFixedSize(80, 32)  # 增加按钮尺寸
         output_browse_btn.clicked.connect(self._browse_output_folder)
         output_layout.addWidget(output_label)
         output_layout.addWidget(self.output_path_edit)
@@ -480,7 +492,7 @@ class MainWindow(QMainWindow):
             header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
             
             # 自动填充输入文件夹路径
-            self.input_path_edit.setPlainText(folder_path)
+            self.input_path_edit.setText(folder_path)
             
             self._update_status(f"当前文件夹: {folder_path}")
 
@@ -488,7 +500,7 @@ class MainWindow(QMainWindow):
         """浏览选择输出文件夹"""
         folder_path = QFileDialog.getExistingDirectory(self, "选择输出文件夹", QDir.homePath())
         if folder_path:
-            self.output_path_edit.setPlainText(folder_path)
+            self.output_path_edit.setText(folder_path)
             self._update_status(f"已设置输出文件夹: {folder_path}")
     
     def _on_file_clicked(self, index: QModelIndex):
@@ -503,7 +515,7 @@ class MainWindow(QMainWindow):
                 target_path = os.path.dirname(file_path)
             else:
                 target_path = file_path
-            self.input_path_edit.setPlainText(target_path)
+            self.input_path_edit.setText(target_path)
             
             # 显示文件信息
             if file_info.isFile():
