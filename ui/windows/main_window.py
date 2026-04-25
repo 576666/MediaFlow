@@ -371,10 +371,7 @@ class MainWindow(QMainWindow):
         photo_layout.setSpacing(10)
         photo_layout.setContentsMargins(8, 8, 8, 8)
         photo_options = [
-            ("照片扩展名转大写 (jpg→JPG)", "photo_ext_upper"),
-            ("照片扩展名转小写 (JPG→jpg)", "photo_ext_lower"),
-            ("照片格式转换 (JPG→PNG)", "photo_jpg_to_png"),
-            ("照片格式转换 (PNG→JPG)", "photo_png_to_jpg"),
+            ("通用扩展名重命名", "photo_batch_rename"),
             ("照片灰度转换", "photo_grayscale"),
         ]
         for text, key in photo_options:
@@ -392,8 +389,7 @@ class MainWindow(QMainWindow):
         video_layout.setSpacing(10)
         video_layout.setContentsMargins(8, 8, 8, 8)
         video_options = [
-            ("视频扩展名转大写 (mp4→MP4)", "video_ext_upper"),
-            ("视频扩展名转小写 (MP4→mp4)", "video_ext_lower"),
+            ("通用扩展名重命名", "video_batch_rename"),
         ]
         for text, key in video_options:
             rb = QRadioButton(text)
@@ -410,6 +406,7 @@ class MainWindow(QMainWindow):
         mixed_layout.setSpacing(10)
         mixed_layout.setContentsMargins(8, 8, 8, 8)
         mixed_options = [
+            ("通用扩展名重命名", "mixed_batch_rename"),
             ("目录扁平化", "mixed_flatten"),
             ("自动备份(带转码)", "mixed_backup"),
         ]
@@ -422,6 +419,57 @@ class MainWindow(QMainWindow):
         self.plugin_toolbox.addItem(mixed_page, "🔄 混合处理")
 
         options_layout.addWidget(self.plugin_toolbox)
+
+        # 格式转换参数
+        rename_params_group = QGroupBox("格式转换参数")
+        rename_params_layout = QVBoxLayout(rename_params_group)
+        rename_params_layout.setSpacing(8)
+
+        # 照片参数行
+        photo_param_layout = QHBoxLayout()
+        photo_param_layout.addWidget(QLabel("照片:"))
+        self.photo_input_fmt = QComboBox()
+        self.photo_input_fmt.addItems(["JPG", "JPEG", "PNG", "TIF", "TIFF"])
+        self.photo_input_fmt.setFixedWidth(70)
+        photo_param_layout.addWidget(self.photo_input_fmt)
+
+        photo_param_layout.addWidget(QLabel("➡️"))
+        self.photo_output_fmt = QComboBox()
+        self.photo_output_fmt.addItems(["JPG", "JPEG", "PNG", "TIF", "TIFF"])
+        self.photo_output_fmt.setFixedWidth(70)
+        photo_param_layout.addWidget(self.photo_output_fmt)
+
+        photo_param_layout.addWidget(QLabel("大小写:"))
+        self.photo_case_combo = QComboBox()
+        self.photo_case_combo.addItems(["保持原样", "全部大写", "全部小写"])
+        self.photo_case_combo.setFixedWidth(90)
+        photo_param_layout.addWidget(self.photo_case_combo)
+        photo_param_layout.addStretch()
+        rename_params_layout.addLayout(photo_param_layout)
+
+        # 视频参数行
+        video_param_layout = QHBoxLayout()
+        video_param_layout.addWidget(QLabel("视频:"))
+        self.video_input_fmt = QComboBox()
+        self.video_input_fmt.addItems(["MP4", "MOV", "TS", "AVI", "MKV"])
+        self.video_input_fmt.setFixedWidth(70)
+        video_param_layout.addWidget(self.video_input_fmt)
+
+        video_param_layout.addWidget(QLabel("➡️"))
+        self.video_output_fmt = QComboBox()
+        self.video_output_fmt.addItems(["MP4", "MOV", "TS", "AVI", "MKV"])
+        self.video_output_fmt.setFixedWidth(70)
+        video_param_layout.addWidget(self.video_output_fmt)
+
+        video_param_layout.addWidget(QLabel("大小写:"))
+        self.video_case_combo = QComboBox()
+        self.video_case_combo.addItems(["保持原样", "全部大写", "全部小写"])
+        self.video_case_combo.setFixedWidth(90)
+        video_param_layout.addWidget(self.video_case_combo)
+        video_param_layout.addStretch()
+        rename_params_layout.addLayout(video_param_layout)
+
+        options_layout.addWidget(rename_params_group)
 
         # 按钮行
         button_layout = QHBoxLayout()
@@ -659,6 +707,34 @@ class MainWindow(QMainWindow):
         name, ext = os.path.splitext(filename)
         ext_lower = ext.lower()
 
+        # 新的通用批量重命名（读取前端参数）
+        if plugin_key in ("photo_batch_rename", "video_batch_rename", "mixed_batch_rename"):
+            photo_in = self.photo_input_fmt.currentText().strip().lower()
+            photo_out = self.photo_output_fmt.currentText().strip()
+            photo_case = self.photo_case_combo.currentIndex()
+
+            video_in = self.video_input_fmt.currentText().strip().lower()
+            video_out = self.video_output_fmt.currentText().strip()
+            video_case = self.video_case_combo.currentIndex()
+
+            def apply_case(text: str, case_idx: int) -> str:
+                if case_idx == 1:
+                    return text.upper()
+                elif case_idx == 2:
+                    return text.lower()
+                return text
+
+            if plugin_key in ("photo_batch_rename", "mixed_batch_rename"):
+                if ext_lower == '.' + photo_in:
+                    return f"{name}.{apply_case(photo_out, photo_case)}"
+
+            if plugin_key in ("video_batch_rename", "mixed_batch_rename"):
+                if ext_lower == '.' + video_in:
+                    return f"{name}.{apply_case(video_out, video_case)}"
+
+            return filename
+
+        # 旧的固定插件（兼容保留）
         if plugin_key == "photo_ext_upper":
             if ext_lower in photo_exts:
                 return name + ext.upper()
@@ -762,7 +838,86 @@ class MainWindow(QMainWindow):
     
     def _on_batch_process(self):
         """执行批量处理"""
-        self._update_status("批量处理功能待实现...")
+        input_path = self.input_path_edit.text().strip()
+        if not input_path or not os.path.isdir(input_path):
+            QMessageBox.warning(self, "提示", "请先选择有效的输入文件夹。")
+            return
+
+        checked_btn = self.plugin_group.checkedButton()
+        if not checked_btn:
+            QMessageBox.warning(self, "提示", "请先选择一个处理插件。")
+            return
+
+        plugin_key = checked_btn.property("plugin_key")
+
+        try:
+            if plugin_key == "photo_batch_rename":
+                self._run_photo_batch_rename(input_path)
+            elif plugin_key == "video_batch_rename":
+                self._run_video_batch_rename(input_path)
+            elif plugin_key == "mixed_batch_rename":
+                self._run_mixed_batch_rename(input_path)
+            elif plugin_key == "photo_grayscale":
+                self._update_status("照片灰度转换执行中...")
+            elif plugin_key == "mixed_flatten":
+                self._update_status("目录扁平化执行中...")
+            elif plugin_key == "mixed_backup":
+                self._update_status("自动备份执行中...")
+            else:
+                self._update_status("该插件执行功能待实现...")
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"执行失败: {str(e)}")
+
+    def _run_photo_batch_rename(self, folder_path: str):
+        from batch_processors.photo.batch_extension_renamer import BatchPhotoExtensionRenamer
+        input_ext = self.photo_input_fmt.currentText().strip()
+        output_ext = self.photo_output_fmt.currentText().strip()
+        case_map = {0: "as_is", 1: "upper", 2: "lower"}
+        case_option = case_map.get(self.photo_case_combo.currentIndex(), "as_is")
+
+        renamer = BatchPhotoExtensionRenamer(input_ext, output_ext, case_option)
+        result = renamer.rename(folder_path)
+
+        msg = f"照片格式转换完成：成功 {result['success']}，失败 {result['failed']}，跳过 {result['skipped']}"
+        self.preview_text.setPlainText("\n".join(result["details"]))
+        self._update_status(msg)
+        QMessageBox.information(self, "完成", msg)
+
+    def _run_video_batch_rename(self, folder_path: str):
+        from batch_processors.video.batch_extension_renamer import BatchVideoExtensionRenamer
+        input_ext = self.video_input_fmt.currentText().strip()
+        output_ext = self.video_output_fmt.currentText().strip()
+        case_map = {0: "as_is", 1: "upper", 2: "lower"}
+        case_option = case_map.get(self.video_case_combo.currentIndex(), "as_is")
+
+        renamer = BatchVideoExtensionRenamer(input_ext, output_ext, case_option)
+        result = renamer.rename(folder_path)
+
+        msg = f"视频格式转换完成：成功 {result['success']}，失败 {result['failed']}，跳过 {result['skipped']}"
+        self.preview_text.setPlainText("\n".join(result["details"]))
+        self._update_status(msg)
+        QMessageBox.information(self, "完成", msg)
+
+    def _run_mixed_batch_rename(self, folder_path: str):
+        from batch_processors.mixed.batch_extension_renamer import BatchMixedExtensionRenamer
+        photo_in = self.photo_input_fmt.currentText().strip()
+        photo_out = self.photo_output_fmt.currentText().strip()
+        video_in = self.video_input_fmt.currentText().strip()
+        video_out = self.video_output_fmt.currentText().strip()
+        case_map = {0: "as_is", 1: "upper", 2: "lower"}
+        photo_case = case_map.get(self.photo_case_combo.currentIndex(), "as_is")
+        video_case = case_map.get(self.video_case_combo.currentIndex(), "as_is")
+
+        renamer = BatchMixedExtensionRenamer(
+            photo_in, photo_out, video_in, video_out,
+            photo_case, video_case
+        )
+        result = renamer.rename(folder_path)
+
+        msg = f"混合格式转换完成：成功 {result['success']}，失败 {result['failed']}，跳过 {result['skipped']}"
+        self.preview_text.setPlainText("\n".join(result["details"]))
+        self._update_status(msg)
+        QMessageBox.information(self, "完成", msg)
     
     def _show_about(self):
         """显示关于"""
