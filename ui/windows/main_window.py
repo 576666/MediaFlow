@@ -595,8 +595,170 @@ class MainWindow(QMainWindow):
     
     def _on_preview(self):
         """预览处理效果"""
-        self.preview_text.setPlainText("预览功能待实现...\n\n选择左侧文件后，选择处理插件并点击此按钮查看处理后的效果。")
-        self._update_status("生成预览中...")
+        input_path = self.input_path_edit.text().strip()
+        if not input_path or not os.path.isdir(input_path):
+            self.preview_text.setPlainText("⚠️ 请先选择左侧输入文件夹（有效目录）。")
+            self._update_status("未选择有效输入文件夹")
+            return
+
+        checked_btn = self.plugin_group.checkedButton()
+        if not checked_btn:
+            self.preview_text.setPlainText("⚠️ 请先选择一个处理插件。")
+            self._update_status("未选择处理插件")
+            return
+
+        plugin_key = checked_btn.property("plugin_key")
+        preview_text = self._generate_preview_text(input_path, plugin_key)
+        self.preview_text.setPlainText(preview_text)
+        self._update_status("预览生成完成")
+
+    def _generate_preview_text(self, folder_path: str, plugin_key: str) -> str:
+        """根据插件类型生成预览文本"""
+        lines = []
+        base_name = os.path.basename(folder_path) or folder_path
+        lines.append(f"📁 {base_name}/")
+        lines.append("")
+
+        if plugin_key == "mixed_flatten":
+            lines.extend(self._preview_flatten(folder_path))
+        elif plugin_key == "mixed_backup":
+            lines.extend(self._preview_backup(folder_path))
+        elif plugin_key == "photo_grayscale":
+            lines.extend(self._preview_grayscale(folder_path))
+        else:
+            lines.extend(self._preview_rename(folder_path, plugin_key))
+
+        return "\n".join(lines)
+
+    def _preview_rename(self, folder_path: str, plugin_key: str) -> list:
+        """生成重命名类操作的目录树预览"""
+        lines = []
+        photo_exts = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp', '.raw', '.cr2', '.nef', '.arw'}
+        video_exts = {'.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.mpeg', '.mpg'}
+
+        for root, dirs, files in os.walk(folder_path):
+            rel_root = os.path.relpath(root, folder_path)
+            level = 0 if rel_root == '.' else rel_root.count(os.sep) + 1
+            indent = "    " * level
+
+            if level > 0:
+                dir_name = os.path.basename(root)
+                lines.append(f"{indent}📁 {dir_name}/")
+
+            for f in sorted(files):
+                new_name = self._simulate_rename(f, plugin_key, photo_exts, video_exts)
+                if new_name != f:
+                    lines.append(f"{indent}    📄 {f} ➡️ {new_name}")
+                else:
+                    lines.append(f"{indent}    📄 {f}")
+
+        return lines
+
+    def _simulate_rename(self, filename: str, plugin_key: str, photo_exts: set, video_exts: set) -> str:
+        """模拟重命名操作，返回新文件名"""
+        name, ext = os.path.splitext(filename)
+        ext_lower = ext.lower()
+
+        if plugin_key == "photo_ext_upper":
+            if ext_lower in photo_exts:
+                return name + ext.upper()
+        elif plugin_key == "photo_ext_lower":
+            if ext_lower in photo_exts:
+                return name + ext.lower()
+        elif plugin_key == "video_ext_upper":
+            if ext_lower in video_exts:
+                return name + ext.upper()
+        elif plugin_key == "video_ext_lower":
+            if ext_lower in video_exts:
+                return name + ext.lower()
+        elif plugin_key == "photo_jpg_to_png":
+            if ext_lower in {'.jpg', '.jpeg'}:
+                return name + '.png'
+        elif plugin_key == "photo_png_to_jpg":
+            if ext_lower == '.png':
+                return name + '.jpg'
+
+        return filename
+
+    def _preview_flatten(self, folder_path: str) -> list:
+        """生成目录扁平化预览"""
+        lines = []
+        file_moves = []
+        removed_dirs = []
+
+        for root, dirs, files in os.walk(folder_path):
+            rel_root = os.path.relpath(root, folder_path)
+            if rel_root == '.':
+                for f in sorted(files):
+                    lines.append(f"    📄 {f} (已在根目录)")
+                continue
+
+            level = rel_root.count(os.sep) + 1
+            indent = "    " * level
+            dir_name = os.path.basename(root)
+            lines.append(f"{indent}📁 {dir_name}/ 🚫")
+            removed_dirs.append(dir_name)
+
+            for f in sorted(files):
+                file_moves.append(f"    📄 {f} ➡️ 📁 {os.path.basename(folder_path)}/📄 {f}")
+
+        if file_moves:
+            lines.append("")
+            lines.append("【扁平化后文件位置】")
+            lines.extend(file_moves)
+
+        return lines
+
+    def _preview_grayscale(self, folder_path: str) -> list:
+        """生成照片灰度转换预览"""
+        lines = []
+        photo_exts = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp'}
+
+        for root, dirs, files in os.walk(folder_path):
+            rel_root = os.path.relpath(root, folder_path)
+            level = 0 if rel_root == '.' else rel_root.count(os.sep) + 1
+            indent = "    " * level
+
+            if level > 0:
+                dir_name = os.path.basename(root)
+                lines.append(f"{indent}📁 {dir_name}/")
+
+            for f in sorted(files):
+                _, ext = os.path.splitext(f)
+                if ext.lower() in photo_exts:
+                    lines.append(f"{indent}    📄 {f} (灰度转换)")
+                else:
+                    lines.append(f"{indent}    📄 {f}")
+
+        return lines
+
+    def _preview_backup(self, folder_path: str) -> list:
+        """生成自动备份预览"""
+        lines = []
+        output_path = self.output_path_edit.text().strip()
+        if not output_path:
+            output_path = f"{folder_path}_backup"
+
+        lines.append(f"备份目标: {output_path}")
+        lines.append("")
+
+        for root, dirs, files in os.walk(folder_path):
+            rel_root = os.path.relpath(root, folder_path)
+            level = 0 if rel_root == '.' else rel_root.count(os.sep) + 1
+            indent = "    " * level
+
+            if level > 0:
+                dir_name = os.path.basename(root)
+                lines.append(f"{indent}📁 {dir_name}/")
+
+            for f in sorted(files):
+                _, ext = os.path.splitext(f)
+                if ext.lower() in {'.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm', '.m4v'}:
+                    lines.append(f"{indent}    📄 {f} (复制+转码)")
+                else:
+                    lines.append(f"{indent}    📄 {f} (复制)")
+
+        return lines
     
     def _on_batch_process(self):
         """执行批量处理"""
